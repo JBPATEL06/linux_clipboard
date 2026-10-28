@@ -17,14 +17,19 @@ class ClipboardWindow(Adw.ApplicationWindow):
         
         # Setup window properties
         self.set_default_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+        self.set_size_request(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+        self.set_resizable(False)
         self.set_decorated(False)
         self.add_css_class("clipboard-window")
         
         # Load custom CSS
         self._load_css()
-        # 
-        # Main vertical box
+        
+        # Main vertical box with fixed size to eliminate Wayland size oscillation
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        main_box.set_size_request(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+        main_box.set_vexpand(False)
+        main_box.set_hexpand(False)
         main_box.add_css_class("main-container")
         self.set_content(main_box)
         
@@ -89,6 +94,10 @@ class ClipboardWindow(Adw.ApplicationWindow):
         scrolled = Gtk.ScrolledWindow()
         scrolled.set_vexpand(True)
         scrolled.set_hexpand(True)
+        scrolled.set_propagate_natural_height(False)
+        scrolled.set_propagate_natural_width(False)
+        scrolled.set_has_frame(False)
+        scrolled.set_overlay_scrolling(True)
         scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         scrolled.add_css_class("history-scrolled")
         main_box.append(scrolled)

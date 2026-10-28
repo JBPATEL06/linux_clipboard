@@ -1,0 +1,17 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local environment / IDE
+.venv/
+env/
+venv/
+.idea/
+.vscode/
+
+# Application runtime cache / DB
+*.db
+*.db-journal
+*.thumb.png
+assets/temp/

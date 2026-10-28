@@ -116,7 +116,7 @@ class ClipboardApp(Adw.Application):
         GLib.idle_add(self._safe_refresh)
 
     def _safe_refresh(self):
-        if self.window:
+        if self.window and self.window.is_visible():
             self.window.refresh_list()
         return False
 
