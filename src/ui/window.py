@@ -17,20 +17,23 @@ class ClipboardWindow(Adw.ApplicationWindow):
         
         # Setup window properties
         self.set_default_size(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
+        self.set_decorated(False)
         self.add_css_class("clipboard-window")
         
         # Load custom CSS
         self._load_css()
-        
+        # 
         # Main vertical box
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         main_box.add_css_class("main-container")
         self.set_content(main_box)
         
-        # 1. Header Box
+        # 1. Header Box (Wrapped in WindowHandle for draggable floating window)
+        window_handle = Gtk.WindowHandle()
         header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         header_box.add_css_class("header-box")
-        main_box.append(header_box)
+        window_handle.set_child(header_box)
+        main_box.append(window_handle)
         
         title_label = Gtk.Label(label="Clipboard")
         title_label.add_css_class("header-title")

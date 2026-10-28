@@ -25,19 +25,18 @@ class ClipboardApp(Adw.Application):
 
     def do_startup(self):
         Adw.Application.do_startup(self)
-        # Keep application running in background for global shortcuts
         self.hold()
         self._held = True
         
-        # Seed initial items if database is fresh
         self._seed_initial_history()
 
-        # Start clipboard watcher
         self.watcher = ClipboardWatcher(
             storage=self.storage,
             on_new_item=self._on_new_item_captured
         )
         self.watcher.start()
+        print("[Clipboard] Background clipboard watcher active.")
+        print("[Clipboard] Window opened! Press Super+V to toggle anytime, or Ctrl+C to quit.")
 
     def _seed_initial_history(self):
         if self.storage.count_items() == 0:
@@ -122,8 +121,12 @@ class ClipboardApp(Adw.Application):
         return False
 
 def main():
-    app = ClipboardApp()
-    return app.run(sys.argv)
+    try:
+        app = ClipboardApp()
+        return app.run(sys.argv)
+    except KeyboardInterrupt:
+        print("\n[Clipboard] Exiting cleanly.")
+        return 0
 
 if __name__ == "__main__":
     sys.exit(main())
