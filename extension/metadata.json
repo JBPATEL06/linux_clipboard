@@ -2,8 +2,16 @@
   "name": "Clipboard",
   "description": "macOS-styled smart floating clipboard manager with rich cards, pagination, and auto-paste.",
   "uuid": "clipboard@antigravity.org",
-  "shell-version": ["45", "46", "47", "48", "49", "50", "50.1"],
+  "shell-version": [
+    "45",
+    "46",
+    "47",
+    "48",
+    "49",
+    "50",
+    "50.1"
+  ],
   "settings-schema": "org.gnome.shell.extensions.clipboard",
   "gettext-domain": "clipboard@antigravity.org",
-  "version": 1
+  "version": 2
 }

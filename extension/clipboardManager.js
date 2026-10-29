@@ -527,10 +527,6 @@ export class ClipboardManager {
                 created_at: new Date().toISOString()
             };
         }
-                content: text,
-                created_at: new Date().toISOString()
-            };
-        }
 
         if (item) {
             this.addItem(item);
