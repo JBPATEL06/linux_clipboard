@@ -105,8 +105,8 @@ export class CardView {
             style_class: 'image-preview-frame',
             x_expand: true,
             style: hasValidFile
-                ? `background-image: url("file://${item.filePath}"); background-size: contain; background-repeat: no-repeat; background-position: center; min-height: 140px;`
-                : 'min-height: 70px;'
+                ? `background-image: url("file://${item.filePath}"); background-size: contain; background-repeat: no-repeat; background-position: center; height: 95px;`
+                : 'height: 70px;'
         });
 
         if (!hasValidFile) {

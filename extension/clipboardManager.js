@@ -43,6 +43,7 @@ export class ClipboardManager {
         this._lastFocusedWindow = null;
         this._virtualKeyboard = null;
         this._isInternalCopy = false;
+        this.onHistoryChanged = null;
 
         this._ensureDirectories();
         this._loadHistory();
@@ -451,6 +452,11 @@ export class ClipboardManager {
     addItem(item) {
         this.items.unshift(item);
         this._saveHistory();
+        if (typeof this.onHistoryChanged === 'function') {
+            try {
+                this.onHistoryChanged();
+            } catch (e) {}
+        }
     }
 
     deleteItem(itemId) {
@@ -459,12 +465,22 @@ export class ClipboardManager {
             this._lastHash = '';
         }
         this._saveHistory();
+        if (typeof this.onHistoryChanged === 'function') {
+            try {
+                this.onHistoryChanged();
+            } catch (e) {}
+        }
     }
 
     clearHistory() {
         this.items = [];
         this._lastHash = '';
         this._saveHistory();
+        if (typeof this.onHistoryChanged === 'function') {
+            try {
+                this.onHistoryChanged();
+            } catch (e) {}
+        }
     }
 
     _formatBytes(bytes) {

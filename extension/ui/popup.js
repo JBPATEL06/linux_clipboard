@@ -20,6 +20,20 @@ export class ClipboardPopup {
         this.isOpen = false;
         this._cardButtons = [];
 
+        // Window drag state
+        this._isDragging = false;
+        this._dragStartX = 0;
+        this._dragStartY = 0;
+        this._boxStartX = 0;
+        this._boxStartY = 0;
+
+        // Live real-time update when new screenshots or items arrive!
+        this.manager.onHistoryChanged = () => {
+            if (this.isOpen) {
+                this.render();
+            }
+        };
+
         // Root overlay covering the screen to handle click-outside dismissal
         this.root = new St.Widget({
             style_class: 'clipboard-popup-root',
@@ -42,42 +56,51 @@ export class ClipboardPopup {
         });
         this.root.add_child(this.box);
 
-        // 1. Header Bar: Title + Total Counter + Trash / Clear
-        const header = new St.BoxLayout({
+        // 1. Header Bar: Title + Total Counter + Drag Handle + Trash / Clear
+        this.header = new St.BoxLayout({
             vertical: false,
-            style_class: 'clipboard-header'
+            style_class: 'clipboard-header',
+            reactive: true
         });
         this.titleLbl = new St.Label({
             text: 'Clipboard',
             style_class: 'clipboard-header-title'
         });
-        header.add_child(this.titleLbl);
+        this.header.add_child(this.titleLbl);
 
         this.counterBadge = new St.Label({
             text: '0 items',
             style_class: 'clipboard-counter-badge'
         });
-        header.add_child(this.counterBadge);
+        this.header.add_child(this.counterBadge);
 
-        const spacer = new St.Widget({ x_expand: true });
-        header.add_child(spacer);
+        const dragPill = new St.Label({
+            text: 'drag to move',
+            style_class: 'clipboard-drag-pill'
+        });
+        this.header.add_child(dragPill);
+
+        const spacer = new St.Widget({ x_expand: true, reactive: false });
+        this.header.add_child(spacer);
 
         // Clear all history button
         const clearBtn = new St.Button({
             style_class: 'clipboard-header-icon-btn',
+            reactive: true,
             child: new St.Icon({
                 icon_name: 'user-trash-symbolic',
                 icon_size: 14
             })
         });
+        clearBtn.connect('button-press-event', () => Clutter.EVENT_STOP);
         clearBtn.connect('clicked', () => {
             this.manager.clearHistory();
             this.currentPage = 1;
             this.render();
         });
-        header.add_child(clearBtn);
+        this.header.add_child(clearBtn);
 
-        this.box.add_child(header);
+        this.box.add_child(this.header);
 
         // 2. Search Field
         const searchBox = new St.BoxLayout({
@@ -112,12 +135,23 @@ export class ClipboardPopup {
 
         this.box.add_child(searchBox);
 
-        // 3. Card Container (Holds strictly 5 items)
+        // 3. Card Scroll Container (Holds 5 items with smooth scrolling & fixed max height)
+        this.scrollView = new St.ScrollView({
+            style_class: 'clipboard-scroll-view',
+            hscrollbar_policy: St.PolicyType.NEVER,
+            vscrollbar_policy: St.PolicyType.AUTOMATIC,
+            enable_mouse_scrolling: true,
+            x_expand: true,
+            y_expand: false
+        });
+
         this.cardsBox = new St.BoxLayout({
             vertical: true,
-            style_class: 'clipboard-cards-box'
+            style_class: 'clipboard-cards-box',
+            x_expand: true
         });
-        this.box.add_child(this.cardsBox);
+        this.scrollView.add_child(this.cardsBox);
+        this.box.add_child(this.scrollView);
 
         // 4. Pagination Footer (< [ 1 / N ] >)
         this.paginationBar = new St.BoxLayout({
@@ -156,8 +190,50 @@ export class ClipboardPopup {
     }
 
     _setupEvents() {
-        // Dismiss when clicking outside popup
+        // 1. Mouse Dragging on Header Bar to freely move the window
+        this.header.connect('button-press-event', (actor, event) => {
+            if (event.get_button() === 1) { // Left mouse button
+                this._isDragging = true;
+                const [cx, cy] = event.get_coords();
+                this._dragStartX = cx;
+                this._dragStartY = cy;
+                const [bx, by] = this.box.get_position();
+                this._boxStartX = bx;
+                this._boxStartY = by;
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        this.root.connect('motion-event', (actor, event) => {
+            if (this._isDragging) {
+                const [cx, cy] = event.get_coords();
+                const deltaX = cx - this._dragStartX;
+                const deltaY = cy - this._dragStartY;
+
+                const monitor = Main.layoutManager.currentMonitor;
+                const [boxW, boxH] = this.box.get_transformed_size();
+                const newX = Math.max(8, Math.min(monitor.width - boxW - 8, this._boxStartX + deltaX));
+                const newY = Math.max(8, Math.min(monitor.height - boxH - 8, this._boxStartY + deltaY));
+
+                this.box.set_position(newX, newY);
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        this.root.connect('button-release-event', (actor, event) => {
+            if (this._isDragging) {
+                this._isDragging = false;
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
+
+        // 2. Dismiss when clicking outside popup
         this.root.connect('button-press-event', (actor, event) => {
+            if (this._isDragging) return Clutter.EVENT_STOP;
+
             const [clickX, clickY] = event.get_coords();
             const [boxX, boxY] = this.box.get_transformed_position();
             const [boxW, boxH] = this.box.get_transformed_size();
@@ -307,6 +383,10 @@ export class ClipboardPopup {
         const popupWidth = Math.min(390, Math.floor(monitor.width * 0.35));
         this.box.set_width(popupWidth);
 
+        // Limit scrollView height so entire popup always fits comfortably on screen
+        const maxScrollHeight = Math.min(480, Math.floor(monitor.height * 0.62));
+        this.scrollView.set_style(`max-height: ${maxScrollHeight}px;`);
+
         // Overlay full monitor for click-outside dismissal
         this.root.set_size(monitor.width, monitor.height);
         this.root.set_position(monitor.x, monitor.y);
@@ -331,9 +411,9 @@ export class ClipboardPopup {
             targetY = pointerY - actualHeight - 8;
         }
 
-        // Keep strictly on screen
-        targetX = Math.max(monitor.x + 8, targetX);
-        targetY = Math.max(monitor.y + 8, targetY);
+        // Keep strictly inside screen on all sides so pagination footer is never pushed off
+        targetX = Math.max(monitor.x + 8, Math.min(monitor.x + monitor.width - popupWidth - 8, targetX));
+        targetY = Math.max(monitor.y + 8, Math.min(monitor.y + monitor.height - actualHeight - 8, targetY));
 
         // Relative coordinates inside root
         this.box.set_position(targetX - monitor.x, targetY - monitor.y);

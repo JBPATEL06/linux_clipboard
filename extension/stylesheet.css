@@ -17,6 +17,7 @@
 /* Header */
 .clipboard-header {
     margin-bottom: 10px;
+    cursor: move;
 }
 
 .clipboard-header-title {
@@ -33,6 +34,16 @@
     font-weight: 600;
     border-radius: 10px;
     padding: 2px 8px;
+}
+
+.clipboard-drag-pill {
+    background-color: rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-left: 8px;
+    color: #727278;
+    font-size: 10px;
+    font-weight: 600;
 }
 
 .clipboard-header-icon-btn {
@@ -82,10 +93,30 @@
     padding: 2px 6px;
 }
 
+/* Cards Scroll Container */
+.clipboard-scroll-view {
+    max-height: 480px;
+    margin-bottom: 8px;
+}
+
+.clipboard-scroll-view StScrollBar {
+    padding: 0;
+}
+
+.clipboard-scroll-view StScrollBar StButton#vhandle {
+    background-color: rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+    margin: 2px;
+}
+
+.clipboard-scroll-view StScrollBar StButton#vhandle:hover,
+.clipboard-scroll-view StScrollBar StButton#vhandle:active {
+    background-color: rgba(255, 255, 255, 0.35);
+}
+
 /* Cards Container */
 .clipboard-cards-box {
     spacing: 6px;
-    margin-bottom: 10px;
 }
 
 /* Card Button */
@@ -136,8 +167,9 @@
 .image-preview-frame {
     background-color: rgba(0, 0, 0, 0.4);
     border-radius: 8px;
-    padding: 6px;
+    padding: 4px;
     margin-bottom: 4px;
+    height: 95px;
 }
 
 .image-preview-icon {
