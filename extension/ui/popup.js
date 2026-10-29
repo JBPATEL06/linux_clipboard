@@ -6,29 +6,29 @@
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 import GLib from 'gi://GLib';
 import { CardView } from './cardView.js';
 
 const ITEMS_PER_PAGE = 5;
 
-export class ClipboardPopup extends St.Widget {
+export class ClipboardPopup {
     constructor(clipboardManager, settings) {
-        super({
+        this.manager = clipboardManager;
+        this.settings = settings;
+        this.currentPage = 1;
+        this.searchQuery = '';
+        this.isOpen = false;
+        this._cardButtons = [];
+        this._modalGrab = false;
+
+        // Root container covering the monitor for click-outside detection
+        this.root = new St.Widget({
             style_class: 'clipboard-popup-root',
             reactive: true,
             can_focus: true,
             track_hover: true,
             visible: false
         });
-
-        this.manager = clipboardManager;
-        this.settings = settings;
-        this.currentPage = 1;
-        this.searchQuery = '';
-        this.isOpen = false;
-        this._selectedCardIndex = -1;
-        this._cardButtons = [];
 
         this._buildUI();
         this._setupEvents();
@@ -37,11 +37,13 @@ export class ClipboardPopup extends St.Widget {
     _buildUI() {
         this.box = new St.BoxLayout({
             vertical: true,
-            style_class: 'clipboard-popup-window'
+            style_class: 'clipboard-popup-window',
+            reactive: true,
+            can_focus: true
         });
-        this.add_child(this.box);
+        this.root.add_child(this.box);
 
-        // 1. Header Bar: Title + Total Counter + Settings / Clear
+        // 1. Header Bar: Title + Total Counter + Trash / Clear
         const header = new St.BoxLayout({
             vertical: false,
             style_class: 'clipboard-header'
@@ -111,7 +113,7 @@ export class ClipboardPopup extends St.Widget {
 
         this.box.add_child(searchBox);
 
-        // 3. Card Container (Holds exactly 5 items)
+        // 3. Card Container (Holds strictly 5 items)
         this.cardsBox = new St.BoxLayout({
             vertical: true,
             style_class: 'clipboard-cards-box'
@@ -156,7 +158,7 @@ export class ClipboardPopup extends St.Widget {
 
     _setupEvents() {
         // Close on clicking outside popup
-        this.connect('button-press-event', (actor, event) => {
+        this.root.connect('button-press-event', (actor, event) => {
             const [clickX, clickY] = event.get_coords();
             const [boxX, boxY] = this.box.get_transformed_position();
             const [boxW, boxH] = this.box.get_transformed_size();
@@ -169,7 +171,7 @@ export class ClipboardPopup extends St.Widget {
         });
 
         // Key Press Navigation
-        this.connect('key-press-event', (actor, event) => {
+        this.root.connect('key-press-event', (actor, event) => {
             const symbol = event.get_key_symbol();
 
             if (symbol === Clutter.KEY_Escape) {
@@ -188,7 +190,7 @@ export class ClipboardPopup extends St.Widget {
                 }
             }
 
-            // Left / Right arrows for pagination
+            // Left / Right arrows for pagination (when not editing search entry text)
             if (symbol === Clutter.KEY_Left && !this.searchEntry.clutter_text.has_key_focus()) {
                 this.prevPage();
                 return Clutter.EVENT_STOP;
@@ -294,7 +296,7 @@ export class ClipboardPopup extends St.Widget {
         const [pointerX, pointerY] = global.get_pointer();
 
         // Responsive sizing: adapts to display
-        const popupWidth = Math.min(390, Math.floor(monitor.width * 0.35));
+        const popupWidth = Math.min(380, Math.floor(monitor.width * 0.35));
         const popupHeight = Math.min(680, Math.floor(monitor.height * 0.85));
 
         this.box.set_width(popupWidth);
@@ -319,22 +321,42 @@ export class ClipboardPopup extends St.Widget {
 
         this.box.set_position(targetX, targetY);
 
-        this.set_size(monitor.width, monitor.height);
-        this.set_position(monitor.x, monitor.y);
+        this.root.set_size(monitor.width, monitor.height);
+        this.root.set_position(monitor.x, monitor.y);
 
-        this.visible = true;
+        this.root.visible = true;
         this.isOpen = true;
-        Main.uiGroup.add_child(this);
-        this.grab_key_focus();
+        Main.uiGroup.add_child(this.root);
+
+        // Push modal focus so all keys and clicks are captured cleanly
+        try {
+            if (Main.pushModal(this.root)) {
+                this._modalGrab = true;
+            }
+        } catch (e) {
+            // Fallback to grab_key_focus
+            this.root.grab_key_focus();
+        }
+
         this.searchEntry.grab_key_focus();
     }
 
     close() {
         if (!this.isOpen) return;
         this.isOpen = false;
-        this.visible = false;
-        if (this.get_parent()) {
-            Main.uiGroup.remove_child(this);
+        this.root.visible = false;
+
+        if (this._modalGrab) {
+            try {
+                Main.popModal(this.root);
+            } catch (e) {
+                // Ignore pop errors
+            }
+            this._modalGrab = false;
+        }
+
+        if (this.root.get_parent()) {
+            Main.uiGroup.remove_child(this.root);
         }
     }
 
@@ -343,6 +365,14 @@ export class ClipboardPopup extends St.Widget {
             this.close();
         } else {
             this.openAtCursor();
+        }
+    }
+
+    destroy() {
+        this.close();
+        if (this.root) {
+            this.root.destroy();
+            this.root = null;
         }
     }
 }

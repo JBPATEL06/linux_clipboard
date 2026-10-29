@@ -12,7 +12,6 @@ import Clutter from 'gi://Clutter';
 import Pango from 'gi://Pango';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import Cogl from 'gi://Cogl';
 
 export class CardView {
     static createCard(item, indexOnPage, onSelectCallback, onDeleteCallback) {
@@ -110,7 +109,7 @@ export class CardView {
         if (item.filePath && GLib.file_test(item.filePath, GLib.FileTest.EXISTS)) {
             try {
                 const gfile = Gio.File.new_for_path(item.filePath);
-                const fileIcon = new Gio.FileIcon({ file: gfile });
+                const fileIcon = Gio.FileIcon.new(gfile);
                 const icon = new St.Icon({
                     gicon: fileIcon,
                     icon_size: 110,

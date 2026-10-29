@@ -12,16 +12,20 @@ import { ClipboardPopup } from './ui/popup.js';
 export default class ClipboardExtension extends Extension {
     enable() {
         try {
+            console.log('[Clipboard] Step 1: getSettings...');
             this._settings = this.getSettings();
+            console.log('[Clipboard] Step 2: ClipboardManager...');
             this._manager = new ClipboardManager(this._settings);
+            console.log('[Clipboard] Step 3: startMonitoring...');
             this._manager.startMonitoring();
+            console.log('[Clipboard] Step 4: ClipboardPopup...');
             this._popup = new ClipboardPopup(this._manager, this._settings);
 
-            // Register native Super+V keybinding
+            console.log('[Clipboard] Step 5: addKeybinding...');
             Main.wm.addKeybinding(
                 'shortcut',
                 this._settings,
-                Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
+                Meta.KeyBindingFlags.NONE,
                 Shell.ActionMode.ALL,
                 () => {
                     this._popup.toggle();
@@ -30,7 +34,7 @@ export default class ClipboardExtension extends Extension {
 
             console.log('[Clipboard] Extension enabled successfully! Press Super+V to toggle.');
         } catch (e) {
-            console.error(`[Clipboard] Error enabling extension: ${e}`);
+            console.error(`[Clipboard] Error enabling extension: ${e}\nStack: ${e.stack}`);
         }
     }
 
