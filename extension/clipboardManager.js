@@ -1,10 +1,10 @@
 /**
  * ClipboardManager for Antigravity Clipboard
- * Handles full multi-format clipboard monitoring:
- * - Direct image capture from Chrome, browsers, and screenshots (image/png, image/jpeg)
- * - File and multiple file handling from Nautilus (text/uri-list, x-special/gnome-copied-files)
- * - Code blocks (first 5 lines), HEX colors, and rich text with emojis
- * - Synthetic pasting into text fields and file drops
+ * Full multi-format clipboard monitoring and binary payload pasting:
+ * - True image binary paste (Meta.SelectionSourceMemory for image/png)
+ * - True file drop paste (text/uri-list)
+ * - Immediate detection without hash lockouts on clear
+ * - Fallbacks for robust capture from Chrome, browsers, and screenshots
  */
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
@@ -137,12 +137,15 @@ export class ClipboardManager {
         const selection = global.display.get_selection();
         const mimeTypes = selection.get_mimetypes(Meta.SelectionType.SELECTION_CLIPBOARD) || [];
 
-        // 1. Check for Images (Chrome, Screenshots, Firefox, etc.)
+        // 1. Check for Image formats (Chrome, Screenshots, Firefox, etc.)
         const imageMime = mimeTypes.find(m => m === 'image/png' || m === 'image/jpeg' || m === 'image/gif');
         if (imageMime) {
             this._transferData(imageMime, (bytes) => {
-                if (!bytes || bytes.length === 0) return;
-                this._handleIncomingImage(bytes, imageMime);
+                if (bytes && bytes.length > 0) {
+                    this._handleIncomingImage(bytes, imageMime);
+                } else {
+                    this._readTextFallback();
+                }
             });
             return;
         }
@@ -151,17 +154,17 @@ export class ClipboardManager {
         const fileMime = mimeTypes.find(m => m === 'text/uri-list' || m === 'x-special/gnome-copied-files');
         if (fileMime) {
             this._transferData('text/uri-list', (bytes) => {
-                if (!bytes || bytes.length === 0) {
+                if (bytes && bytes.length > 0) {
+                    const text = new TextDecoder('utf-8').decode(bytes);
+                    this._handleIncomingFileUris(text);
+                } else {
                     this._readTextFallback();
-                    return;
                 }
-                const text = new TextDecoder('utf-8').decode(bytes);
-                this._handleIncomingFileUris(text);
             });
             return;
         }
 
-        // 3. Plain / Rich Text Fallback
+        // 3. Plain / Rich Text
         this._readTextFallback();
     }
 
@@ -257,7 +260,7 @@ export class ClipboardManager {
 
         const nowStr = this._formatTimestamp();
 
-        // If single file and it's an image, create Image Card with preview!
+        // If single file and it is an image, preview it as an Image Card!
         if (uris.length === 1) {
             const file = Gio.File.new_for_uri(uris[0]);
             const path = file.get_path();
@@ -289,7 +292,7 @@ export class ClipboardManager {
             }
         }
 
-        // If multiple files or non-image single file
+        // Multiple files or non-image single file
         let totalSize = 0;
         const fileNames = [];
         let primaryIcon = 'text-x-generic';
@@ -431,11 +434,15 @@ export class ClipboardManager {
 
     deleteItem(itemId) {
         this.items = this.items.filter(it => it.id !== itemId);
+        if (this.items.length === 0) {
+            this._lastHash = '';
+        }
         this._saveHistory();
     }
 
     clearHistory() {
         this.items = [];
+        this._lastHash = '';
         this._saveHistory();
     }
 
@@ -452,21 +459,43 @@ export class ClipboardManager {
         return now.format('%I:%M %p').replace(/^0/, '');
     }
 
+    /**
+     * Pastes item. Images are loaded as binary image/png payload onto Meta.Selection,
+     * so applications receive the ACTUAL IMAGE rather than a file path string!
+     */
     pasteItem(item) {
         if (!item) return;
 
         this._isInternalCopy = true;
+        const selection = global.display.get_selection();
 
-        if (item.type === 'file' && item.fileUri) {
-            St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.fileUri);
-        } else if (item.type === 'image' && item.fileUri) {
-            St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.fileUri);
-        } else if (item.type === 'image' && item.filePath) {
-            St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.filePath);
+        // 1. Populate clipboard with true native formats
+        if (item.type === 'image' && item.filePath && GLib.file_test(item.filePath, GLib.FileTest.EXISTS)) {
+            try {
+                const file = Gio.File.new_for_path(item.filePath);
+                const [success, contents] = file.load_contents(null);
+                if (success) {
+                    const mime = item.format === 'JPG' ? 'image/jpeg' : (item.format === 'GIF' ? 'image/gif' : 'image/png');
+                    const source = Meta.SelectionSourceMemory.new(mime, GLib.Bytes.new(contents));
+                    selection.set_owner(Meta.SelectionType.SELECTION_CLIPBOARD, source);
+                }
+            } catch (e) {
+                console.error(`[Clipboard] Failed to set binary image payload: ${e}`);
+            }
+        } else if (item.type === 'file' && item.fileUri) {
+            try {
+                const uriBytes = new TextEncoder().encode(item.fileUri);
+                const source = Meta.SelectionSourceMemory.new('text/uri-list', GLib.Bytes.new(uriBytes));
+                selection.set_owner(Meta.SelectionType.SELECTION_CLIPBOARD, source);
+                St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.fileUri);
+            } catch (e) {
+                St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.fileUri);
+            }
         } else {
             St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.content || item.title);
         }
 
+        // 2. Refocus target window
         const targetWindow = this._lastFocusedWindow;
         if (targetWindow) {
             try {
@@ -474,6 +503,7 @@ export class ClipboardManager {
             } catch (e) {}
         }
 
+        // 3. Send synthetic paste keystroke
         const autoPaste = this.settings ? this.settings.get_boolean('auto-paste') : true;
         if (autoPaste && this._virtualKeyboard) {
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => {
