@@ -62,28 +62,32 @@ export class ClipboardPopup {
         this.header = new St.BoxLayout({
             vertical: false,
             style_class: 'clipboard-header',
-            reactive: true
+            reactive: true,
+            x_expand: true
         });
         this.titleLbl = new St.Label({
             text: 'Clipboard',
-            style_class: 'clipboard-header-title'
+            style_class: 'clipboard-header-title',
+            reactive: true
         });
         this.header.add_child(this.titleLbl);
 
         this.counterBadge = new St.Label({
             text: '0 items',
-            style_class: 'clipboard-counter-badge'
+            style_class: 'clipboard-counter-badge',
+            reactive: true
         });
         this.header.add_child(this.counterBadge);
 
-        const dragPill = new St.Label({
+        this.dragPill = new St.Label({
             text: 'drag to move',
-            style_class: 'clipboard-drag-pill'
+            style_class: 'clipboard-drag-pill',
+            reactive: true
         });
-        this.header.add_child(dragPill);
+        this.header.add_child(this.dragPill);
 
-        const spacer = new St.Widget({ x_expand: true, reactive: false });
-        this.header.add_child(spacer);
+        this.spacer = new St.Widget({ x_expand: true, reactive: true });
+        this.header.add_child(this.spacer);
 
         // Clear all history button
         this.clearBtn = new St.Button({
@@ -216,29 +220,39 @@ export class ClipboardPopup {
 
     _setupEvents() {
         // 1. Mouse Dragging on Header Bar to freely move the window
-        this.header.connect('button-press-event', (actor, event) => {
-            if (event.get_button() === 1) { // Left mouse button
-                const source = event.get_source();
-                if (source === this.clearBtn || (this.clearBtn && this.clearBtn.contains(source))) {
+        const handleDragPress = (actor, event) => {
+            if (event.get_button() !== 1) return Clutter.EVENT_PROPAGATE;
+            const source = event.get_source();
+            if (source === this.clearBtn || (this.clearBtn && this.clearBtn.contains(source))) {
+                return Clutter.EVENT_PROPAGATE;
+            }
+
+            this._cleanupDrag();
+
+            const [cx, cy] = event.get_coords();
+            const [bx, by] = this.box.get_position();
+            this._dragStartX = cx;
+            this._dragStartY = cy;
+            this._boxStartX = bx;
+            this._boxStartY = by;
+            this._isDragging = false;
+
+            this._stageMotionId = global.stage.connect('motion-event', (_stage, ev) => {
+                const evState = ev.get_state();
+                if (!(evState & Clutter.ModifierType.BUTTON1_MASK)) {
+                    this._cleanupDrag();
                     return Clutter.EVENT_PROPAGATE;
                 }
 
-                this._cleanupDrag();
+                const [curX, curY] = ev.get_coords();
+                const deltaX = curX - this._dragStartX;
+                const deltaY = curY - this._dragStartY;
 
-                const [cx, cy] = event.get_coords();
-                const [bx, by] = this.box.get_position();
-                this._dragStartX = cx;
-                this._dragStartY = cy;
-                this._boxStartX = bx;
-                this._boxStartY = by;
-                this._isDragging = true;
+                if (!this._isDragging && (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2)) {
+                    this._isDragging = true;
+                }
 
-                this._stageMotionId = global.stage.connect('motion-event', (_stage, ev) => {
-                    if (!this._isDragging) return Clutter.EVENT_PROPAGATE;
-                    const [curX, curY] = ev.get_coords();
-                    const deltaX = curX - this._dragStartX;
-                    const deltaY = curY - this._dragStartY;
-
+                if (this._isDragging) {
                     const monitor = Main.layoutManager.currentMonitor;
                     const [boxW, boxH] = this.box.get_transformed_size();
                     const newX = Math.max(8, Math.min(monitor.width - boxW - 8, this._boxStartX + deltaX));
@@ -246,20 +260,25 @@ export class ClipboardPopup {
 
                     this.box.set_position(newX, newY);
                     return Clutter.EVENT_STOP;
-                });
+                }
+                return Clutter.EVENT_PROPAGATE;
+            });
 
-                this._stageReleaseId = global.stage.connect('button-release-event', (_stage, ev) => {
-                    if (ev.get_button() === 1) {
-                        this._cleanupDrag();
-                        return Clutter.EVENT_STOP;
-                    }
-                    return Clutter.EVENT_PROPAGATE;
-                });
+            this._stageReleaseId = global.stage.connect('button-release-event', (_stage, ev) => {
+                if (ev.get_button() === 1) {
+                    this._cleanupDrag();
+                }
+                return Clutter.EVENT_PROPAGATE;
+            });
 
-                return Clutter.EVENT_STOP;
-            }
             return Clutter.EVENT_PROPAGATE;
-        });
+        };
+
+        this.header.connect('button-press-event', handleDragPress);
+        this.titleLbl.connect('button-press-event', handleDragPress);
+        this.counterBadge.connect('button-press-event', handleDragPress);
+        this.dragPill.connect('button-press-event', handleDragPress);
+        this.spacer.connect('button-press-event', handleDragPress);
 
         // 2. Dismiss when clicking outside popup
         this.root.connect('button-press-event', (actor, event) => {
