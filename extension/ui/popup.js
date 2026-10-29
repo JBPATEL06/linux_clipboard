@@ -84,21 +84,22 @@ export class ClipboardPopup {
         this.header.add_child(spacer);
 
         // Clear all history button
-        const clearBtn = new St.Button({
+        this.clearBtn = new St.Button({
             style_class: 'clipboard-header-icon-btn',
             reactive: true,
+            can_focus: true,
+            track_hover: true,
             child: new St.Icon({
                 icon_name: 'user-trash-symbolic',
                 icon_size: 14
             })
         });
-        clearBtn.connect('button-press-event', () => Clutter.EVENT_STOP);
-        clearBtn.connect('clicked', () => {
+        this.clearBtn.connect('clicked', () => {
             this.manager.clearHistory();
             this.currentPage = 1;
             this.render();
         });
-        this.header.add_child(clearBtn);
+        this.header.add_child(this.clearBtn);
 
         this.box.add_child(this.header);
 
@@ -193,6 +194,10 @@ export class ClipboardPopup {
         // 1. Mouse Dragging on Header Bar to freely move the window
         this.header.connect('button-press-event', (actor, event) => {
             if (event.get_button() === 1) { // Left mouse button
+                const source = event.get_source();
+                if (source === this.clearBtn || (this.clearBtn && this.clearBtn.contains(source))) {
+                    return Clutter.EVENT_PROPAGATE;
+                }
                 this._isDragging = true;
                 const [cx, cy] = event.get_coords();
                 this._dragStartX = cx;

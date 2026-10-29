@@ -476,6 +476,9 @@ export class ClipboardManager {
         this.items = [];
         this._lastHash = '';
         this._saveHistory();
+        try {
+            St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, '');
+        } catch (e) {}
         if (typeof this.onHistoryChanged === 'function') {
             try {
                 this.onHistoryChanged();
