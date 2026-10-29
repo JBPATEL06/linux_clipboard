@@ -1,6 +1,10 @@
 /**
  * ClipboardManager for Antigravity Clipboard
- * Handles clipboard monitoring, persistence, categorization, and synthetic pasting.
+ * Handles full multi-format clipboard monitoring:
+ * - Direct image capture from Chrome, browsers, and screenshots (image/png, image/jpeg)
+ * - File and multiple file handling from Nautilus (text/uri-list, x-special/gnome-copied-files)
+ * - Code blocks (first 5 lines), HEX colors, and rich text with emojis
+ * - Synthetic pasting into text fields and file drops
  */
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
@@ -107,11 +111,6 @@ export class ClipboardManager {
         } catch (e) {
             this.items = [];
         }
-
-        // Seed initial items if completely empty
-        if (!this.items || this.items.length === 0) {
-            this._seedInitialMockItems();
-        }
     }
 
     _saveHistory() {
@@ -134,60 +133,39 @@ export class ClipboardManager {
         }
     }
 
-    _seedInitialMockItems() {
-        this.items = [
-            {
-                id: 'mock-1',
-                type: 'text',
-                title: 'Welcome to macOS styled Clipboard',
-                subtitle: 'Copied text • Just now',
-                content: 'Welcome to macOS styled Clipboard! Press 1-5 to paste.',
-                created_at: new Date().toISOString()
-            },
-            {
-                id: 'mock-2',
-                type: 'code',
-                title: 'settings.ini',
-                subtitle: 'Configuration • Just now',
-                content: 'hide__main_window__in__task_bar = true\nkeep_on_top = true\nanimate_cards = true\nresponsive_display = true\nopen_at_cursor = true',
-                lines: ['hide__main_window__in__task_bar = true', 'keep_on_top = true', 'animate_cards = true', 'responsive_display = true', 'open_at_cursor = true'],
-                total_lines: 5,
-                fileName: 'settings.ini',
-                created_at: new Date().toISOString()
-            },
-            {
-                id: 'mock-3',
-                type: 'file',
-                title: 'Screen_shaking_issue.webm',
-                subtitle: 'Video file',
-                fileSize: '1.3 MB',
-                filePath: '/home/jeel/Projects/clipboard_linux/bugs/Screen_shaking_issue.webm',
-                iconName: 'video-x-generic',
-                created_at: new Date().toISOString()
-            },
-            {
-                id: 'mock-4',
-                type: 'color',
-                title: '#0A84FF',
-                subtitle: 'macOS Accent Blue • Just now',
-                hex: '#0A84FF',
-                colorName: 'macOS Accent Blue',
-                content: '#0A84FF',
-                created_at: new Date().toISOString()
-            },
-            {
-                id: 'mock-5',
-                type: 'command',
-                title: 'git push origin main',
-                subtitle: 'Terminal command • Just now',
-                content: 'git push origin main',
-                created_at: new Date().toISOString()
-            }
-        ];
-        this._saveHistory();
+    _readClipboard() {
+        const selection = global.display.get_selection();
+        const mimeTypes = selection.get_mimetypes(Meta.SelectionType.SELECTION_CLIPBOARD) || [];
+
+        // 1. Check for Images (Chrome, Screenshots, Firefox, etc.)
+        const imageMime = mimeTypes.find(m => m === 'image/png' || m === 'image/jpeg' || m === 'image/gif');
+        if (imageMime) {
+            this._transferData(imageMime, (bytes) => {
+                if (!bytes || bytes.length === 0) return;
+                this._handleIncomingImage(bytes, imageMime);
+            });
+            return;
+        }
+
+        // 2. Check for File URIs from Nautilus / Files (single or multiple files)
+        const fileMime = mimeTypes.find(m => m === 'text/uri-list' || m === 'x-special/gnome-copied-files');
+        if (fileMime) {
+            this._transferData('text/uri-list', (bytes) => {
+                if (!bytes || bytes.length === 0) {
+                    this._readTextFallback();
+                    return;
+                }
+                const text = new TextDecoder('utf-8').decode(bytes);
+                this._handleIncomingFileUris(text);
+            });
+            return;
+        }
+
+        // 3. Plain / Rich Text Fallback
+        this._readTextFallback();
     }
 
-    _readClipboard() {
+    _readTextFallback() {
         St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (clipboard, text) => {
             if (!text || !text.trim()) return;
 
@@ -199,14 +177,171 @@ export class ClipboardManager {
         });
     }
 
+    _transferData(mimetype, callback) {
+        try {
+            const selection = global.display.get_selection();
+            const output = Gio.MemoryOutputStream.new_resizable();
+            selection.transfer_async(
+                Meta.SelectionType.SELECTION_CLIPBOARD,
+                mimetype,
+                -1,
+                output,
+                null,
+                (sel, res) => {
+                    try {
+                        sel.transfer_finish(res);
+                        const bytes = output.steal_as_bytes();
+                        if (bytes && bytes.get_size() > 0) {
+                            callback(bytes.toArray());
+                        } else {
+                            callback(null);
+                        }
+                    } catch (e) {
+                        callback(null);
+                    }
+                }
+            );
+        } catch (e) {
+            callback(null);
+        }
+    }
+
+    _handleIncomingImage(uint8Array, mimeType) {
+        try {
+            const ext = mimeType === 'image/jpeg' ? 'jpg' : (mimeType === 'image/gif' ? 'gif' : 'png');
+            const h = GLib.compute_checksum_for_data(GLib.ChecksumType.SHA256, uint8Array);
+            if (h === this._lastHash) return;
+            this._lastHash = h;
+
+            const filename = `clip_${h.substring(0, 12)}.${ext}`;
+            const filePath = GLib.build_filenamev([IMAGE_DIR, filename]);
+
+            const file = Gio.File.new_for_path(filePath);
+            file.replace_contents(
+                uint8Array,
+                null,
+                false,
+                Gio.FileCreateFlags.REPLACE_DESTINATION,
+                null
+            );
+
+            const sizeStr = this._formatBytes(uint8Array.length);
+            const nowStr = this._formatTimestamp();
+            const isGif = ext === 'gif';
+
+            const item = {
+                id: GLib.uuid_string_random(),
+                type: 'image',
+                title: isGif ? 'Animated GIF' : `Copied Image (${ext.toUpperCase()})`,
+                subtitle: `Image • ${sizeStr} • ${nowStr}`,
+                filePath: filePath,
+                format: ext.toUpperCase(),
+                isGif: isGif,
+                fileSize: sizeStr,
+                created_at: new Date().toISOString()
+            };
+
+            this.addItem(item);
+        } catch (e) {
+            console.error(`[Clipboard] Failed to save image: ${e}`);
+        }
+    }
+
+    _handleIncomingFileUris(uriString) {
+        const uris = uriString.split(/[\r\n]+/).filter(u => u.trim().startsWith('file://'));
+        if (uris.length === 0) return;
+
+        const h = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, uriString, -1);
+        if (h === this._lastHash) return;
+        this._lastHash = h;
+
+        const nowStr = this._formatTimestamp();
+
+        // If single file and it's an image, create Image Card with preview!
+        if (uris.length === 1) {
+            const file = Gio.File.new_for_uri(uris[0]);
+            const path = file.get_path();
+            if (path && file.query_exists(null)) {
+                const lower = path.toLowerCase();
+                const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+                const isImage = imageExts.some(ext => lower.endsWith(ext));
+
+                if (isImage) {
+                    const info = file.query_info('standard::size', Gio.FileQueryInfoFlags.NONE, null);
+                    const sizeStr = this._formatBytes(info.get_size());
+                    const filename = file.get_basename();
+                    const ext = filename.split('.').pop().toUpperCase();
+
+                    this.addItem({
+                        id: GLib.uuid_string_random(),
+                        type: 'image',
+                        title: filename,
+                        subtitle: `Screenshot / Image • ${sizeStr} • ${nowStr}`,
+                        filePath: path,
+                        fileUri: uris[0],
+                        format: ext,
+                        isGif: ext === 'GIF',
+                        fileSize: sizeStr,
+                        created_at: new Date().toISOString()
+                    });
+                    return;
+                }
+            }
+        }
+
+        // If multiple files or non-image single file
+        let totalSize = 0;
+        const fileNames = [];
+        let primaryIcon = 'text-x-generic';
+
+        uris.forEach(uri => {
+            try {
+                const f = Gio.File.new_for_uri(uri);
+                if (f.query_exists(null)) {
+                    fileNames.push(f.get_basename());
+                    const info = f.query_info('standard::size,standard::content-type', Gio.FileQueryInfoFlags.NONE, null);
+                    totalSize += info.get_size();
+                    const ct = info.get_content_type();
+                    if (ct) {
+                        if (ct.startsWith('video/')) primaryIcon = 'video-x-generic';
+                        else if (ct.startsWith('audio/')) primaryIcon = 'audio-x-generic';
+                        else if (ct.includes('zip') || ct.includes('tar') || ct.includes('archive')) primaryIcon = 'package-x-generic';
+                        else if (f.query_file_type(Gio.FileQueryInfoFlags.NONE, null) === Gio.FileType.DIRECTORY) primaryIcon = 'folder';
+                    }
+                }
+            } catch (e) {}
+        });
+
+        const isMulti = uris.length > 1;
+        const title = isMulti ? `${uris.length} Files: ${fileNames.slice(0, 3).join(', ')}${uris.length > 3 ? '...' : ''}` : fileNames[0];
+
+        const item = {
+            id: GLib.uuid_string_random(),
+            type: 'file',
+            title: title,
+            subtitle: isMulti ? `Multiple Files (${uris.length}) • ${this._formatBytes(totalSize)} • ${nowStr}` : `File • ${this._formatBytes(totalSize)} • ${nowStr}`,
+            filePath: uris.length === 1 ? Gio.File.new_for_uri(uris[0]).get_path() : null,
+            fileUri: uriString,
+            fileSize: this._formatBytes(totalSize),
+            iconName: isMulti ? 'folder-documents-symbolic' : primaryIcon,
+            isMultiple: isMulti,
+            created_at: new Date().toISOString()
+        };
+
+        this.addItem(item);
+    }
+
     _handleIncomingText(rawText) {
         const text = rawText.trim();
         const nowStr = this._formatTimestamp();
         let item = null;
 
-        // 1. Check if it's a File URI (file:///...)
-        if (text.startsWith('file://')) {
-            item = this._parseFileUri(text, nowStr);
+        // 1. Check if it's a file path string (/home/... or file://)
+        if (text.startsWith('/') && GLib.file_test(text, GLib.FileTest.EXISTS)) {
+            const f = Gio.File.new_for_path(text);
+            const uri = f.get_uri();
+            this._handleIncomingFileUris(uri);
+            return;
         }
 
         // 2. Check if it's a HEX Color
@@ -245,10 +380,9 @@ export class ClipboardManager {
         // 4. Check if it's a Code block
         if (!item) {
             const lines = text.split('\n');
-            const codeKeywords = ['def ', 'class ', 'function', 'const ', 'let ', 'var ', 'import ', 'return ', '{', '}', '=>', '#include', '<?php'];
+            const codeKeywords = ['def ', 'class ', 'function', 'const ', 'let ', 'var ', 'import ', 'return ', '{', '}', '=>', '#include', '<?php', 'public ', 'private '];
             const hasKeywords = codeKeywords.some(kw => text.includes(kw));
             if ((lines.length > 1 && hasKeywords) || lines.length >= 3) {
-                // Extract file name from first line if available (e.g. // script.js or # main.py)
                 let fileName = 'Code Snippet';
                 const first = lines[0].trim();
                 if (first.startsWith('//') || first.startsWith('#') || first.startsWith('/*')) {
@@ -256,7 +390,6 @@ export class ClipboardManager {
                     if (match) fileName = match[0];
                 }
 
-                // Strictly first 5 lines as requested
                 const previewLines = lines.slice(0, 5);
                 item = {
                     id: GLib.uuid_string_random(),
@@ -291,71 +424,7 @@ export class ClipboardManager {
         }
     }
 
-    _parseFileUri(uriString, nowStr) {
-        try {
-            const uris = uriString.split(/[\r\n]+/).filter(u => u.startsWith('file://'));
-            if (uris.length === 0) return null;
-
-            const uri = uris[0];
-            const file = Gio.File.new_for_uri(uri);
-            const path = file.get_path();
-            if (!file.query_exists(null)) return null;
-
-            const info = file.query_info('standard::display-name,standard::size,standard::icon,standard::content-type', Gio.FileQueryInfoFlags.NONE, null);
-            const name = info.get_display_name() || file.get_basename();
-            const sizeBytes = info.get_size();
-            const sizeStr = this._formatBytes(sizeBytes);
-            const contentType = info.get_content_type();
-
-            let iconName = 'text-x-generic';
-            if (contentType) {
-                if (contentType.startsWith('image/')) iconName = 'image-x-generic';
-                else if (contentType.startsWith('video/')) iconName = 'video-x-generic';
-                else if (contentType.startsWith('audio/')) iconName = 'audio-x-generic';
-                else if (contentType.includes('archive') || contentType.includes('zip') || contentType.includes('tar')) iconName = 'package-x-generic';
-                else if (file.query_file_type(Gio.FileQueryInfoFlags.NONE, null) === Gio.FileType.DIRECTORY) iconName = 'folder';
-            }
-
-            return {
-                id: GLib.uuid_string_random(),
-                type: 'file',
-                title: name,
-                subtitle: `File • ${nowStr}`,
-                filePath: path,
-                fileUri: uri,
-                fileSize: sizeStr,
-                iconName: iconName,
-                content: uriString,
-                created_at: new Date().toISOString()
-            };
-        } catch (e) {
-            return null;
-        }
-    }
-
-    addImageItem(filePath, format = 'PNG', width = 0, height = 0, isGif = false) {
-        const nowStr = this._formatTimestamp();
-        const file = Gio.File.new_for_path(filePath);
-        const info = file.query_info('standard::size', Gio.FileQueryInfoFlags.NONE, null);
-        const sizeStr = this._formatBytes(info.get_size());
-
-        const item = {
-            id: GLib.uuid_string_random(),
-            type: 'image',
-            title: isGif ? 'Animated GIF' : `Image Preview (${format})`,
-            subtitle: `${format} • ${width > 0 ? `${width}×${height} • ` : ''}${sizeStr}`,
-            filePath: filePath,
-            format: format,
-            isGif: isGif,
-            fileSize: sizeStr,
-            content: filePath,
-            created_at: new Date().toISOString()
-        };
-        this.addItem(item);
-    }
-
     addItem(item) {
-        // Prepend new item
         this.items.unshift(item);
         this._saveHistory();
     }
@@ -383,16 +452,14 @@ export class ClipboardManager {
         return now.format('%I:%M %p').replace(/^0/, '');
     }
 
-    /**
-     * Pastes item into focused area / file drop
-     */
     pasteItem(item) {
         if (!item) return;
 
         this._isInternalCopy = true;
 
-        // 1. Populate clipboard
         if (item.type === 'file' && item.fileUri) {
+            St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.fileUri);
+        } else if (item.type === 'image' && item.fileUri) {
             St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.fileUri);
         } else if (item.type === 'image' && item.filePath) {
             St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.filePath);
@@ -400,20 +467,15 @@ export class ClipboardManager {
             St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.content || item.title);
         }
 
-        // 2. Refocus previous active window
         const targetWindow = this._lastFocusedWindow;
         if (targetWindow) {
             try {
                 targetWindow.activate(global.get_current_time());
-            } catch (e) {
-                // Ignore focus errors
-            }
+            } catch (e) {}
         }
 
-        // 3. Trigger synthetic paste keystroke if auto-paste is enabled
         const autoPaste = this.settings ? this.settings.get_boolean('auto-paste') : true;
         if (autoPaste && this._virtualKeyboard) {
-            // Small timeout to allow target window to take focus on Wayland
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => {
                 this._sendPasteKeystroke(targetWindow);
                 return GLib.SOURCE_REMOVE;

@@ -1,6 +1,6 @@
 /**
  * ClipboardPopup for Antigravity Clipboard
- * Modal popup placed at the cursor position with boundary clamping,
+ * Modal popup placed directly at the cursor position with boundary clamping,
  * responsive display scaling, 5-items-per-page pagination, and instant auto-paste.
  */
 import St from 'gi://St';
@@ -19,9 +19,8 @@ export class ClipboardPopup {
         this.searchQuery = '';
         this.isOpen = false;
         this._cardButtons = [];
-        this._modalGrab = false;
 
-        // Root container covering the monitor for click-outside detection
+        // Root overlay covering the screen to handle click-outside dismissal
         this.root = new St.Widget({
             style_class: 'clipboard-popup-root',
             reactive: true,
@@ -63,7 +62,7 @@ export class ClipboardPopup {
         const spacer = new St.Widget({ x_expand: true });
         header.add_child(spacer);
 
-        // Trash / Clear button
+        // Clear all history button
         const clearBtn = new St.Button({
             style_class: 'clipboard-header-icon-btn',
             child: new St.Icon({
@@ -157,7 +156,7 @@ export class ClipboardPopup {
     }
 
     _setupEvents() {
-        // Close on clicking outside popup
+        // Dismiss when clicking outside popup
         this.root.connect('button-press-event', (actor, event) => {
             const [clickX, clickY] = event.get_coords();
             const [boxX, boxY] = this.box.get_transformed_position();
@@ -170,7 +169,7 @@ export class ClipboardPopup {
             return Clutter.EVENT_PROPAGATE;
         });
 
-        // Key Press Navigation
+        // Keyboard Handling
         this.root.connect('key-press-event', (actor, event) => {
             const symbol = event.get_key_symbol();
 
@@ -179,25 +178,34 @@ export class ClipboardPopup {
                 return Clutter.EVENT_STOP;
             }
 
-            // Number keys 1-5 for instant paste
-            if (symbol >= Clutter.KEY_1 && symbol <= Clutter.KEY_5) {
-                const idx = symbol - Clutter.KEY_1;
-                const filtered = this._getFilteredItems();
-                const item = filtered[(this.currentPage - 1) * ITEMS_PER_PAGE + idx];
-                if (item) {
-                    this._selectItem(item);
+            // Quick digits 1-5 for instant item paste (only when not editing search entry)
+            if (!this.searchEntry.clutter_text.has_key_focus()) {
+                if (symbol >= Clutter.KEY_1 && symbol <= Clutter.KEY_5) {
+                    const idx = symbol - Clutter.KEY_1;
+                    const filtered = this._getFilteredItems();
+                    const item = filtered[(this.currentPage - 1) * ITEMS_PER_PAGE + idx];
+                    if (item) {
+                        this._selectItem(item);
+                        return Clutter.EVENT_STOP;
+                    }
+                }
+
+                // Left / Right arrow pagination
+                if (symbol === Clutter.KEY_Left) {
+                    this.prevPage();
                     return Clutter.EVENT_STOP;
                 }
-            }
+                if (symbol === Clutter.KEY_Right) {
+                    this.nextPage();
+                    return Clutter.EVENT_STOP;
+                }
 
-            // Left / Right arrows for pagination (when not editing search entry text)
-            if (symbol === Clutter.KEY_Left && !this.searchEntry.clutter_text.has_key_focus()) {
-                this.prevPage();
-                return Clutter.EVENT_STOP;
-            }
-            if (symbol === Clutter.KEY_Right && !this.searchEntry.clutter_text.has_key_focus()) {
-                this.nextPage();
-                return Clutter.EVENT_STOP;
+                // If user starts typing alphanumeric characters, divert to search entry!
+                const unicode = Clutter.keysym_to_unicode(symbol);
+                if (unicode > 32 && unicode < 127) {
+                    this.searchEntry.grab_key_focus();
+                    return Clutter.EVENT_PROPAGATE;
+                }
             }
 
             return Clutter.EVENT_PROPAGATE;
@@ -295,32 +303,11 @@ export class ClipboardPopup {
         const monitor = Main.layoutManager.currentMonitor;
         const [pointerX, pointerY] = global.get_pointer();
 
-        // Responsive sizing: adapts to display
-        const popupWidth = Math.min(380, Math.floor(monitor.width * 0.35));
-        const popupHeight = Math.min(680, Math.floor(monitor.height * 0.85));
-
+        // Responsive width
+        const popupWidth = Math.min(390, Math.floor(monitor.width * 0.35));
         this.box.set_width(popupWidth);
 
-        // Clamping to screen boundaries so it never overflows
-        let targetX = pointerX - 20;
-        let targetY = pointerY - 20;
-
-        if (targetX + popupWidth > monitor.x + monitor.width - 15) {
-            targetX = monitor.x + monitor.width - popupWidth - 15;
-        }
-        if (targetX < monitor.x + 15) {
-            targetX = monitor.x + 15;
-        }
-
-        if (targetY + popupHeight > monitor.y + monitor.height - 15) {
-            targetY = monitor.y + monitor.height - popupHeight - 15;
-        }
-        if (targetY < monitor.y + 15) {
-            targetY = monitor.y + 15;
-        }
-
-        this.box.set_position(targetX, targetY);
-
+        // Overlay full monitor for click-outside dismissal
         this.root.set_size(monitor.width, monitor.height);
         this.root.set_position(monitor.x, monitor.y);
 
@@ -328,32 +315,37 @@ export class ClipboardPopup {
         this.isOpen = true;
         Main.uiGroup.add_child(this.root);
 
-        // Push modal focus so all keys and clicks are captured cleanly
-        try {
-            if (Main.pushModal(this.root)) {
-                this._modalGrab = true;
-            }
-        } catch (e) {
-            // Fallback to grab_key_focus
-            this.root.grab_key_focus();
+        // Accurate placement directly at pointer
+        const [, naturalHeight] = this.box.get_preferred_height(popupWidth);
+        const actualHeight = Math.max(160, Math.min(naturalHeight, Math.floor(monitor.height * 0.85)));
+
+        let targetX = pointerX + 8;
+        let targetY = pointerY + 8;
+
+        // If overflowing right edge, flip to left of cursor
+        if (targetX + popupWidth > monitor.x + monitor.width - 12) {
+            targetX = pointerX - popupWidth - 8;
+        }
+        // If overflowing bottom edge, flip above the cursor
+        if (targetY + actualHeight > monitor.y + monitor.height - 12) {
+            targetY = pointerY - actualHeight - 8;
         }
 
-        this.searchEntry.grab_key_focus();
+        // Keep strictly on screen
+        targetX = Math.max(monitor.x + 8, targetX);
+        targetY = Math.max(monitor.y + 8, targetY);
+
+        // Relative coordinates inside root
+        this.box.set_position(targetX - monitor.x, targetY - monitor.y);
+
+        // Focus root/box so 1-5 keys paste immediately and screenshots aren't blocked!
+        this.box.grab_key_focus();
     }
 
     close() {
         if (!this.isOpen) return;
         this.isOpen = false;
         this.root.visible = false;
-
-        if (this._modalGrab) {
-            try {
-                Main.popModal(this.root);
-            } catch (e) {
-                // Ignore pop errors
-            }
-            this._modalGrab = false;
-        }
 
         if (this.root.get_parent()) {
             Main.uiGroup.remove_child(this.root);

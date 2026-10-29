@@ -1,10 +1,10 @@
 /**
  * CardView for Antigravity Clipboard
  * Builds rich cards matching the user's wireframe:
- * - Image & Animated GIF preview card
+ * - High-res Image & Animated GIF preview card (from Chrome, web, or screenshots)
  * - Copied text with emoji support
  * - 5-line Code block card with file name header
- * - File card with name and file size (file drop support)
+ * - File card (single & multiple) with name and file size (file drop support)
  * - Color swatch card
  */
 import St from 'gi://St';
@@ -98,42 +98,31 @@ export class CardView {
             x_expand: true
         });
 
-        const previewContainer = new St.BoxLayout({
-            vertical: false,
+        const hasValidFile = item.filePath && GLib.file_test(item.filePath, GLib.FileTest.EXISTS);
+
+        // Direct CSS background-image renders any image format or screenshot with native performance
+        const previewFrame = new St.Widget({
             style_class: 'image-preview-frame',
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER
+            x_expand: true,
+            style: hasValidFile
+                ? `background-image: url("file://${item.filePath}"); background-size: contain; background-repeat: no-repeat; background-position: center; min-height: 140px;`
+                : 'min-height: 70px;'
         });
 
-        let loaded = false;
-        if (item.filePath && GLib.file_test(item.filePath, GLib.FileTest.EXISTS)) {
-            try {
-                const gfile = Gio.File.new_for_path(item.filePath);
-                const fileIcon = Gio.FileIcon.new(gfile);
-                const icon = new St.Icon({
-                    gicon: fileIcon,
-                    icon_size: 110,
-                    style_class: 'image-preview-icon'
-                });
-                previewContainer.add_child(icon);
-                loaded = true;
-            } catch (e) {
-                loaded = false;
-            }
-        }
-
-        if (!loaded) {
+        if (!hasValidFile) {
             const fallbackIcon = new St.Icon({
                 icon_name: 'image-x-generic',
-                icon_size: 64,
-                style_class: 'image-fallback-icon'
+                icon_size: 48,
+                style_class: 'image-fallback-icon',
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.CENTER
             });
-            previewContainer.add_child(fallbackIcon);
+            previewFrame.add_child(fallbackIcon);
         }
 
-        box.add_child(previewContainer);
+        box.add_child(previewFrame);
 
-        // Subtitle with badge
+        // Subtitle bar
         const infoBar = new St.BoxLayout({
             vertical: false,
             style_class: 'card-info-bar'
@@ -146,16 +135,17 @@ export class CardView {
         infoBar.add_child(formatBadge);
 
         const subLbl = new St.Label({
-            text: ` ${item.subtitle || ''}`,
+            text: ` ${item.title} • ${item.fileSize || ''}`,
             style_class: 'card-subtitle-lbl'
         });
+        subLbl.clutter_text.ellipsize = Pango.EllipsizeMode.END;
         infoBar.add_child(subLbl);
 
         box.add_child(infoBar);
         return box;
     }
 
-    // 2. Code Block Card (Strictly First 5 Lines + File Name)
+    // 2. Code Block Card (Strictly First 5 Lines + File Name Header)
     static _buildCodeCard(item) {
         const box = new St.BoxLayout({
             vertical: true,
@@ -183,7 +173,7 @@ export class CardView {
 
         box.add_child(headerBar);
 
-        // Code Body Box: Monospace with 5 lines
+        // Code Body Box: Monospace with strictly 5 lines
         const codeBox = new St.BoxLayout({
             vertical: true,
             style_class: 'code-inner-frame',
@@ -227,7 +217,7 @@ export class CardView {
         return box;
     }
 
-    // 3. Copied File Card (File Name on left, File Size on right)
+    // 3. Copied File Card (Single & Multiple Files with File Size)
     static _buildFileCard(item) {
         const box = new St.BoxLayout({
             vertical: false,
@@ -271,7 +261,6 @@ export class CardView {
             y_align: Clutter.ActorAlign.CENTER
         });
 
-        // Color circle preview
         const swatch = new St.Widget({
             style_class: 'color-swatch-circle',
             style: `background-color: ${item.hex || '#0A84FF'};`
