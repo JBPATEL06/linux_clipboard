@@ -13,5 +13,9 @@
   ],
   "settings-schema": "org.gnome.shell.extensions.clipboard",
   "gettext-domain": "clipboard@antigravity.org",
+  "session-modes": [
+    "user",
+    "unlock-dialog"
+  ],
   "version": 2
 }

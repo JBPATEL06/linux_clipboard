@@ -435,6 +435,9 @@ export class ClipboardPopup {
 
         this.root.visible = true;
         this.isOpen = true;
+        if (this.root.get_parent()) {
+            Main.uiGroup.remove_child(this.root);
+        }
         Main.uiGroup.add_child(this.root);
 
         // Accurate placement directly at pointer

@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="clipboard@antigravity.org">
   <schema id="org.gnome.shell.extensions.clipboard" path="/org/gnome/shell/extensions/clipboard/">
-    <key name="shortcut" type="as">
+    <key name="toggle-clipboard" type="as">
       <default>['&lt;Super&gt;v']</default>
       <summary>Toggle Clipboard popup shortcut</summary>
+    </key>
+    <key name="shortcut" type="as">
+      <default>['&lt;Super&gt;v']</default>
+      <summary>Legacy shortcut key</summary>
     </key>
     <key name="items-per-page" type="i">
       <default>5</default>

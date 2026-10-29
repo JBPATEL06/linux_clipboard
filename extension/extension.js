@@ -22,11 +22,16 @@ export default class ClipboardExtension extends Extension {
             this._popup = new ClipboardPopup(this._manager, this._settings);
 
             console.log('[Clipboard] Step 5: addKeybinding...');
+            const keyName = this._settings.list_keys().includes('toggle-clipboard')
+                ? 'toggle-clipboard'
+                : 'shortcut';
+            this._boundKeyName = keyName;
+
             Main.wm.addKeybinding(
-                'shortcut',
+                keyName,
                 this._settings,
-                Meta.KeyBindingFlags.NONE,
-                Shell.ActionMode.ALL,
+                Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
+                Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
                 () => {
                     if (this._popup) {
                         this._popup.toggle();
@@ -34,7 +39,7 @@ export default class ClipboardExtension extends Extension {
                 }
             );
 
-            console.log('[Clipboard] Extension enabled successfully! Press Super+V to toggle.');
+            console.log(`[Clipboard] Extension enabled successfully! Bound key '${keyName}'. Press Super+V to toggle.`);
         } catch (e) {
             console.error(`[Clipboard] Error enabling extension: ${e}\nStack: ${e.stack}`);
         }
@@ -42,7 +47,13 @@ export default class ClipboardExtension extends Extension {
 
     disable() {
         try {
-            Main.wm.removeKeybinding('shortcut');
+            if (this._boundKeyName) {
+                Main.wm.removeKeybinding(this._boundKeyName);
+                this._boundKeyName = null;
+            } else {
+                Main.wm.removeKeybinding('toggle-clipboard');
+                Main.wm.removeKeybinding('shortcut');
+            }
 
             if (this._popup) {
                 this._popup.close();
