@@ -47,8 +47,12 @@ export class CardView {
         topBar.add_child(spacer);
 
         // Delete button
+        let deleteClicked = false;
         const deleteBtn = new St.Button({
             style_class: 'card-delete-btn',
+            reactive: true,
+            can_focus: true,
+            track_hover: true,
             child: new St.Icon({
                 icon_name: 'edit-delete-symbolic',
                 icon_size: 13,
@@ -56,7 +60,12 @@ export class CardView {
             })
         });
         deleteBtn.connect('clicked', () => {
+            deleteClicked = true;
             if (onDeleteCallback) onDeleteCallback(item.id);
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                deleteClicked = false;
+                return GLib.SOURCE_REMOVE;
+            });
         });
         topBar.add_child(deleteBtn);
 
@@ -84,6 +93,7 @@ export class CardView {
         }
 
         button.connect('clicked', () => {
+            if (deleteClicked) return;
             if (onSelectCallback) onSelectCallback(item);
         });
 
@@ -195,9 +205,11 @@ export class CardView {
 
             const codeText = new St.Label({
                 text: lineText || ' ',
-                style_class: 'code-line-text'
+                style_class: 'code-line-text',
+                x_expand: true
             });
             codeText.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+            codeText.clutter_text.single_line_mode = true;
             lineRow.add_child(codeText);
 
             codeBox.add_child(lineRow);
@@ -239,6 +251,7 @@ export class CardView {
             x_expand: true
         });
         nameLbl.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        nameLbl.clutter_text.single_line_mode = true;
         box.add_child(nameLbl);
 
         // File size on right side
@@ -305,6 +318,7 @@ export class CardView {
             style_class: 'text-card-title'
         });
         titleLbl.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        titleLbl.clutter_text.single_line_mode = true;
         box.add_child(titleLbl);
 
         const subLbl = new St.Label({

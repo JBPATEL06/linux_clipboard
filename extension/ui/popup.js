@@ -126,6 +126,12 @@ export class ClipboardPopup {
             this.currentPage = 1;
             this.render();
         });
+        this.searchEntry.clutter_text.connect('activate', () => {
+            const filtered = this._getFilteredItems();
+            if (filtered.length > 0) {
+                this._selectItem(filtered[0]);
+            }
+        });
         searchBox.add_child(this.searchEntry);
 
         const shortcutBadge = new St.Label({
@@ -259,10 +265,21 @@ export class ClipboardPopup {
                 return Clutter.EVENT_STOP;
             }
 
-            // Quick digits 1-5 for instant item paste (only when not editing search entry)
+            // Quick digits 1-5 (main keyboard + numpad) and Enter for instant item paste
             if (!this.searchEntry.clutter_text.has_key_focus()) {
-                if (symbol >= Clutter.KEY_1 && symbol <= Clutter.KEY_5) {
-                    const idx = symbol - Clutter.KEY_1;
+                if (symbol === Clutter.KEY_Return || symbol === Clutter.KEY_KP_Enter) {
+                    const filtered = this._getFilteredItems();
+                    const item = filtered[(this.currentPage - 1) * ITEMS_PER_PAGE];
+                    if (item) {
+                        this._selectItem(item);
+                        return Clutter.EVENT_STOP;
+                    }
+                }
+
+                const isDigit = (symbol >= Clutter.KEY_1 && symbol <= Clutter.KEY_5);
+                const isKpDigit = (symbol >= Clutter.KEY_KP_1 && symbol <= Clutter.KEY_KP_5);
+                if (isDigit || isKpDigit) {
+                    const idx = isKpDigit ? (symbol - Clutter.KEY_KP_1) : (symbol - Clutter.KEY_1);
                     const filtered = this._getFilteredItems();
                     const item = filtered[(this.currentPage - 1) * ITEMS_PER_PAGE + idx];
                     if (item) {
@@ -447,6 +464,9 @@ export class ClipboardPopup {
 
     destroy() {
         this.close();
+        if (this.manager) {
+            this.manager.onHistoryChanged = null;
+        }
         if (this.root) {
             this.root.destroy();
             this.root = null;

@@ -85,10 +85,14 @@ export class ClipboardManager {
 
     stopMonitoring() {
         if (this._ownerChangedId > 0) {
-            const selection = global.display.get_selection();
-            selection.disconnect(this._ownerChangedId);
+            try {
+                const selection = global.display.get_selection();
+                selection.disconnect(this._ownerChangedId);
+            } catch (e) {}
             this._ownerChangedId = 0;
         }
+        this._virtualKeyboard = null;
+        this.onHistoryChanged = null;
     }
 
     saveCurrentFocus() {
@@ -118,6 +122,15 @@ export class ClipboardManager {
         try {
             const maxHistory = this.settings ? this.settings.get_int('history-size') : 100;
             if (this.items.length > maxHistory) {
+                const discarded = this.items.slice(maxHistory);
+                discarded.forEach(item => {
+                    if (item.type === 'image' && item.filePath && item.filePath.startsWith(IMAGE_DIR)) {
+                        try {
+                            const imgFile = Gio.File.new_for_path(item.filePath);
+                            if (imgFile.query_exists(null)) imgFile.delete(null);
+                        } catch (e) {}
+                    }
+                });
                 this.items = this.items.slice(0, maxHistory);
             }
             const jsonStr = JSON.stringify(this.items, null, 2);
@@ -195,6 +208,7 @@ export class ClipboardManager {
                     try {
                         sel.transfer_finish(res);
                         const bytes = output.steal_as_bytes();
+                        try { output.close(null); } catch (e) {}
                         if (bytes && bytes.get_size() > 0) {
                             callback(bytes.toArray());
                         } else {
@@ -460,6 +474,14 @@ export class ClipboardManager {
     }
 
     deleteItem(itemId) {
+        const itemToDelete = this.items.find(it => it.id === itemId);
+        if (itemToDelete && itemToDelete.type === 'image' && itemToDelete.filePath && itemToDelete.filePath.startsWith(IMAGE_DIR)) {
+            try {
+                const imgFile = Gio.File.new_for_path(itemToDelete.filePath);
+                if (imgFile.query_exists(null)) imgFile.delete(null);
+            } catch (e) {}
+        }
+
         this.items = this.items.filter(it => it.id !== itemId);
         if (this.items.length === 0) {
             this._lastHash = '';
@@ -473,6 +495,18 @@ export class ClipboardManager {
     }
 
     clearHistory() {
+        // Clean up cached screenshot image files on disk
+        try {
+            const dir = Gio.File.new_for_path(IMAGE_DIR);
+            if (dir.query_exists(null)) {
+                const enumerator = dir.enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
+                let info;
+                while ((info = enumerator.next_file(null)) !== null) {
+                    dir.get_child(info.get_name()).delete(null);
+                }
+            }
+        } catch (e) {}
+
         this.items = [];
         this._lastHash = '';
         this._saveHistory();
