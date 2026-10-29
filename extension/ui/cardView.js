@@ -177,8 +177,11 @@ export class CardView {
 
         const fileNameLbl = new St.Label({
             text: ` ${item.fileName || 'Code Snippet'}`,
-            style_class: 'code-filename-lbl'
+            style_class: 'code-filename-lbl',
+            x_expand: true
         });
+        fileNameLbl.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        fileNameLbl.clutter_text.single_line_mode = true;
         headerBar.add_child(fileNameLbl);
 
         box.add_child(headerBar);

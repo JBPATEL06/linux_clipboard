@@ -78,6 +78,14 @@ export class ClipboardManager {
                     this._readClipboard();
                 }
             });
+
+            // Track active window continuously so we always know the source file when copying
+            this._focusWindowId = display.connect('notify::focus-window', () => {
+                try {
+                    const win = display.focus_window;
+                    if (win) this._lastFocusedWindow = win;
+                } catch (e) {}
+            });
         } catch (e) {
             console.error(`[Clipboard] Failed to start selection monitoring: ${e}`);
         }
@@ -90,6 +98,12 @@ export class ClipboardManager {
                 selection.disconnect(this._ownerChangedId);
             } catch (e) {}
             this._ownerChangedId = 0;
+        }
+        if (this._focusWindowId > 0) {
+            try {
+                global.display.disconnect(this._focusWindowId);
+            } catch (e) {}
+            this._focusWindowId = 0;
         }
         this._virtualKeyboard = null;
         this.onHistoryChanged = null;
@@ -147,7 +161,63 @@ export class ClipboardManager {
         }
     }
 
+    _getCurFocusTitle() {
+        try {
+            const win = global.display.focus_window || this._lastFocusedWindow;
+            if (win && typeof win.get_title === 'function') {
+                return win.get_title() || '';
+            }
+        } catch (e) {}
+        return '';
+    }
+
+    _extractFileName(winTitle, text) {
+        // 1. Try extracting from active window title (e.g. VS Code, Gedit, Text Editor)
+        if (winTitle) {
+            // Strip dirty dot / bullet / unsaved markers
+            const cleanTitle = winTitle.replace(/^[●\*\s]+/, '').trim();
+            // Split by common title separators: ' - ', ' — ', ' – ', ' · ', ' (', ' [', ' / '
+            const parts = cleanTitle.split(/\s+[-—–·/]\s+|\s+[\(\[]/);
+            for (let part of parts) {
+                part = part.trim();
+                if (part.includes('/')) {
+                    part = part.split('/').pop().trim();
+                }
+                // Match word.extension e.g. HANDLING_NOTES.md, popup.js, main.py
+                const match = part.match(/([a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9_\-]+)/);
+                if (match) {
+                    const candidate = match[1];
+                    const lower = candidate.toLowerCase();
+                    const isDomain = ['.com', '.org', '.net', '.io', '.app', '.gov', '.edu'].some(ext => lower.endsWith(ext));
+                    if (!isDomain) {
+                        return candidate;
+                    }
+                    if (['.html', '.js', '.ts', '.json', '.css'].some(ext => lower.endsWith(ext))) {
+                        return candidate;
+                    }
+                }
+                if (/^(Dockerfile|Makefile|Vagrantfile|Gemfile)$/i.test(part)) {
+                    return part;
+                }
+            }
+        }
+
+        // 2. Fallback: Check first line of copied text for inline comments (e.g. // file.js or # file.py)
+        if (text) {
+            const firstLine = text.split('\n')[0].trim();
+            if (firstLine.startsWith('//') || firstLine.startsWith('#') || firstLine.startsWith('/*')) {
+                const match = firstLine.match(/([a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9_\-]+)/);
+                if (match) {
+                    return match[1];
+                }
+            }
+        }
+
+        return null;
+    }
+
     _readClipboard() {
+        const winTitle = this._getCurFocusTitle();
         const selection = global.display.get_selection();
         const mimeTypes = selection.get_mimetypes(Meta.SelectionType.SELECTION_CLIPBOARD) || [];
 
@@ -158,7 +228,7 @@ export class ClipboardManager {
                 if (bytes && bytes.length > 0) {
                     this._handleIncomingImage(bytes, imageMime);
                 } else {
-                    this._readTextFallback();
+                    this._readTextFallback(winTitle);
                 }
             });
             return;
@@ -172,17 +242,17 @@ export class ClipboardManager {
                     const text = new TextDecoder('utf-8').decode(bytes);
                     this._handleIncomingFileUris(text);
                 } else {
-                    this._readTextFallback();
+                    this._readTextFallback(winTitle);
                 }
             });
             return;
         }
 
         // 3. Plain / Rich Text
-        this._readTextFallback();
+        this._readTextFallback(winTitle);
     }
 
-    _readTextFallback() {
+    _readTextFallback(winTitle = '') {
         St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (clipboard, text) => {
             if (!text || !text.trim()) return;
 
@@ -190,7 +260,7 @@ export class ClipboardManager {
             if (h === this._lastHash) return;
             this._lastHash = h;
 
-            this._handleIncomingText(text);
+            this._handleIncomingText(text, winTitle);
         });
     }
 
@@ -370,10 +440,12 @@ export class ClipboardManager {
         this.addItem(item);
     }
 
-    _handleIncomingText(rawText) {
+    _handleIncomingText(rawText, winTitle = '') {
         const text = rawText.trim();
         const nowStr = this._formatTimestamp();
         let item = null;
+
+        const detectedFileName = this._extractFileName(winTitle, text);
 
         // 1. Check if it's a file path string (/home/... or file://)
         if (text.startsWith('/') && GLib.file_test(text, GLib.FileTest.EXISTS)) {
@@ -421,14 +493,10 @@ export class ClipboardManager {
             const lines = text.split('\n');
             const codeKeywords = ['def ', 'class ', 'function', 'const ', 'let ', 'var ', 'import ', 'return ', '{', '}', '=>', '#include', '<?php', 'public ', 'private '];
             const hasKeywords = codeKeywords.some(kw => text.includes(kw));
-            if ((lines.length > 1 && hasKeywords) || lines.length >= 3) {
-                let fileName = 'Code Snippet';
-                const first = lines[0].trim();
-                if (first.startsWith('//') || first.startsWith('#') || first.startsWith('/*')) {
-                    const match = first.match(/[\w-]+\.\w+/);
-                    if (match) fileName = match[0];
-                }
+            const isCodeExt = detectedFileName && /\.(js|ts|jsx|tsx|py|c|cpp|h|hpp|java|go|rs|md|markdown|json|ya?ml|html|css|scss|sh|bash|php|rb|sql|xml|vue|svelte|lua|dart|swift|kt|kts|toml)$/i.test(detectedFileName);
 
+            if (isCodeExt || (lines.length > 1 && hasKeywords) || lines.length >= 3) {
+                const fileName = detectedFileName || 'Code Snippet';
                 const previewLines = lines.slice(0, 5);
                 item = {
                     id: GLib.uuid_string_random(),
@@ -448,11 +516,17 @@ export class ClipboardManager {
         if (!item) {
             const firstLine = text.split('\n')[0];
             const title = firstLine.length > 50 ? firstLine.substring(0, 50) + '...' : firstLine;
+            const subtitle = detectedFileName ? `From ${detectedFileName} • ${nowStr}` : `Copied text • ${nowStr}`;
             item = {
                 id: GLib.uuid_string_random(),
                 type: 'text',
                 title: title,
-                subtitle: `Copied text • ${nowStr}`,
+                subtitle: subtitle,
+                sourceFile: detectedFileName || null,
+                content: text,
+                created_at: new Date().toISOString()
+            };
+        }
                 content: text,
                 created_at: new Date().toISOString()
             };

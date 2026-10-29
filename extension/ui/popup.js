@@ -26,6 +26,8 @@ export class ClipboardPopup {
         this._dragStartY = 0;
         this._boxStartX = 0;
         this._boxStartY = 0;
+        this._stageMotionId = 0;
+        this._stageReleaseId = 0;
 
         // Live real-time update when new screenshots or items arrive!
         this.manager.onHistoryChanged = () => {
@@ -196,6 +198,22 @@ export class ClipboardPopup {
         this.box.add_child(this.paginationBar);
     }
 
+    _cleanupDrag() {
+        if (this._stageMotionId > 0) {
+            try {
+                global.stage.disconnect(this._stageMotionId);
+            } catch (e) {}
+            this._stageMotionId = 0;
+        }
+        if (this._stageReleaseId > 0) {
+            try {
+                global.stage.disconnect(this._stageReleaseId);
+            } catch (e) {}
+            this._stageReleaseId = 0;
+        }
+        this._isDragging = false;
+    }
+
     _setupEvents() {
         // 1. Mouse Dragging on Header Bar to freely move the window
         this.header.connect('button-press-event', (actor, event) => {
@@ -204,38 +222,40 @@ export class ClipboardPopup {
                 if (source === this.clearBtn || (this.clearBtn && this.clearBtn.contains(source))) {
                     return Clutter.EVENT_PROPAGATE;
                 }
-                this._isDragging = true;
+
+                this._cleanupDrag();
+
                 const [cx, cy] = event.get_coords();
+                const [bx, by] = this.box.get_position();
                 this._dragStartX = cx;
                 this._dragStartY = cy;
-                const [bx, by] = this.box.get_position();
                 this._boxStartX = bx;
                 this._boxStartY = by;
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
+                this._isDragging = true;
 
-        this.root.connect('motion-event', (actor, event) => {
-            if (this._isDragging) {
-                const [cx, cy] = event.get_coords();
-                const deltaX = cx - this._dragStartX;
-                const deltaY = cy - this._dragStartY;
+                this._stageMotionId = global.stage.connect('motion-event', (_stage, ev) => {
+                    if (!this._isDragging) return Clutter.EVENT_PROPAGATE;
+                    const [curX, curY] = ev.get_coords();
+                    const deltaX = curX - this._dragStartX;
+                    const deltaY = curY - this._dragStartY;
 
-                const monitor = Main.layoutManager.currentMonitor;
-                const [boxW, boxH] = this.box.get_transformed_size();
-                const newX = Math.max(8, Math.min(monitor.width - boxW - 8, this._boxStartX + deltaX));
-                const newY = Math.max(8, Math.min(monitor.height - boxH - 8, this._boxStartY + deltaY));
+                    const monitor = Main.layoutManager.currentMonitor;
+                    const [boxW, boxH] = this.box.get_transformed_size();
+                    const newX = Math.max(8, Math.min(monitor.width - boxW - 8, this._boxStartX + deltaX));
+                    const newY = Math.max(8, Math.min(monitor.height - boxH - 8, this._boxStartY + deltaY));
 
-                this.box.set_position(newX, newY);
-                return Clutter.EVENT_STOP;
-            }
-            return Clutter.EVENT_PROPAGATE;
-        });
+                    this.box.set_position(newX, newY);
+                    return Clutter.EVENT_STOP;
+                });
 
-        this.root.connect('button-release-event', (actor, event) => {
-            if (this._isDragging) {
-                this._isDragging = false;
+                this._stageReleaseId = global.stage.connect('button-release-event', (_stage, ev) => {
+                    if (ev.get_button() === 1) {
+                        this._cleanupDrag();
+                        return Clutter.EVENT_STOP;
+                    }
+                    return Clutter.EVENT_PROPAGATE;
+                });
+
                 return Clutter.EVENT_STOP;
             }
             return Clutter.EVENT_PROPAGATE;
@@ -445,6 +465,7 @@ export class ClipboardPopup {
     }
 
     close() {
+        this._cleanupDrag();
         if (!this.isOpen) return;
         this.isOpen = false;
         this.root.visible = false;
@@ -463,6 +484,7 @@ export class ClipboardPopup {
     }
 
     destroy() {
+        this._cleanupDrag();
         this.close();
         if (this.manager) {
             this.manager.onHistoryChanged = null;

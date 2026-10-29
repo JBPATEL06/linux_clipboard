@@ -41,9 +41,16 @@
     border-radius: 4px;
     padding: 1px 6px;
     margin-left: 8px;
-    color: #727278;
+    color: #8e8e93;
     font-size: 10px;
     font-weight: 600;
+    cursor: move;
+    transition-duration: 150ms;
+}
+
+.clipboard-drag-pill:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
 }
 
 .clipboard-header-icon-btn {
