@@ -222,46 +222,37 @@ export class ClipboardPopup {
         // 1. Mouse Dragging on Header Bar to freely move the window
         const handleDragPress = (actor, event) => {
             if (event.get_button() !== 1) return Clutter.EVENT_PROPAGATE;
+
+            // Don't drag if clicking the clear history / trash button
             const source = event.get_source();
-            if (source === this.clearBtn || (this.clearBtn && this.clearBtn.contains(source))) {
+            if (source && this.clearBtn && (source === this.clearBtn || (typeof this.clearBtn.contains === 'function' && this.clearBtn.contains(source)))) {
                 return Clutter.EVENT_PROPAGATE;
             }
 
             this._cleanupDrag();
 
             const [cx, cy] = event.get_coords();
-            const [bx, by] = this.box.get_position();
             this._dragStartX = cx;
             this._dragStartY = cy;
-            this._boxStartX = bx;
-            this._boxStartY = by;
-            this._isDragging = false;
+            this._boxStartX = this.box.x;
+            this._boxStartY = this.box.y;
+            this._isDragging = true;
 
             this._stageMotionId = global.stage.connect('motion-event', (_stage, ev) => {
-                const evState = ev.get_state();
-                if (!(evState & Clutter.ModifierType.BUTTON1_MASK)) {
-                    this._cleanupDrag();
-                    return Clutter.EVENT_PROPAGATE;
-                }
+                if (!this._isDragging) return Clutter.EVENT_PROPAGATE;
 
                 const [curX, curY] = ev.get_coords();
                 const deltaX = curX - this._dragStartX;
                 const deltaY = curY - this._dragStartY;
 
-                if (!this._isDragging && (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2)) {
-                    this._isDragging = true;
-                }
+                const monitor = Main.layoutManager.currentMonitor;
+                const boxW = this.box.width || 390;
+                const boxH = this.box.height || 400;
+                const newX = Math.max(8, Math.min(monitor.width - boxW - 8, this._boxStartX + deltaX));
+                const newY = Math.max(8, Math.min(monitor.height - boxH - 8, this._boxStartY + deltaY));
 
-                if (this._isDragging) {
-                    const monitor = Main.layoutManager.currentMonitor;
-                    const [boxW, boxH] = this.box.get_transformed_size();
-                    const newX = Math.max(8, Math.min(monitor.width - boxW - 8, this._boxStartX + deltaX));
-                    const newY = Math.max(8, Math.min(monitor.height - boxH - 8, this._boxStartY + deltaY));
-
-                    this.box.set_position(newX, newY);
-                    return Clutter.EVENT_STOP;
-                }
-                return Clutter.EVENT_PROPAGATE;
+                this.box.set_position(newX, newY);
+                return Clutter.EVENT_STOP;
             });
 
             this._stageReleaseId = global.stage.connect('button-release-event', (_stage, ev) => {
@@ -271,7 +262,7 @@ export class ClipboardPopup {
                 return Clutter.EVENT_PROPAGATE;
             });
 
-            return Clutter.EVENT_PROPAGATE;
+            return Clutter.EVENT_STOP;
         };
 
         this.header.connect('button-press-event', handleDragPress);
