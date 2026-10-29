@@ -28,7 +28,9 @@ export default class ClipboardExtension extends Extension {
                 Meta.KeyBindingFlags.NONE,
                 Shell.ActionMode.ALL,
                 () => {
-                    this._popup.toggle();
+                    if (this._popup) {
+                        this._popup.toggle();
+                    }
                 }
             );
 

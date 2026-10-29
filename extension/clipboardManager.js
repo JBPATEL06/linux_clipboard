@@ -151,9 +151,9 @@ export class ClipboardManager {
         }
 
         // 2. Check for File URIs from Nautilus / Files (single or multiple files)
-        const fileMime = mimeTypes.find(m => m === 'text/uri-list' || m === 'x-special/gnome-copied-files');
+        const fileMime = mimeTypes.find(m => m === 'x-special/gnome-copied-files') || mimeTypes.find(m => m === 'text/uri-list');
         if (fileMime) {
-            this._transferData('text/uri-list', (bytes) => {
+            this._transferData(fileMime, (bytes) => {
                 if (bytes && bytes.length > 0) {
                     const text = new TextDecoder('utf-8').decode(bytes);
                     this._handleIncomingFileUris(text);
@@ -251,10 +251,12 @@ export class ClipboardManager {
     }
 
     _handleIncomingFileUris(uriString) {
-        const uris = uriString.split(/[\r\n]+/).filter(u => u.trim().startsWith('file://'));
+        const uris = uriString.split(/[\r\n]+/)
+            .map(u => u.trim())
+            .filter(u => u.startsWith('file://'));
         if (uris.length === 0) return;
 
-        const h = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, uriString, -1);
+        const h = GLib.compute_checksum_for_string(GLib.ChecksumType.SHA256, uris.join('\n'), -1);
         if (h === this._lastHash) return;
         this._lastHash = h;
 
@@ -262,72 +264,91 @@ export class ClipboardManager {
 
         // If single file and it is an image, preview it as an Image Card!
         if (uris.length === 1) {
-            const file = Gio.File.new_for_uri(uris[0]);
-            const path = file.get_path();
-            if (path && file.query_exists(null)) {
-                const lower = path.toLowerCase();
-                const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
-                const isImage = imageExts.some(ext => lower.endsWith(ext));
+            try {
+                const file = Gio.File.new_for_uri(uris[0]);
+                const path = file.get_path();
+                if (path && file.query_exists(null)) {
+                    const lower = path.toLowerCase();
+                    const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+                    const isImage = imageExts.some(ext => lower.endsWith(ext));
 
-                if (isImage) {
-                    const info = file.query_info('standard::size', Gio.FileQueryInfoFlags.NONE, null);
-                    const sizeStr = this._formatBytes(info.get_size());
-                    const filename = file.get_basename();
-                    const ext = filename.split('.').pop().toUpperCase();
+                    if (isImage) {
+                        const info = file.query_info('standard::size', Gio.FileQueryInfoFlags.NONE, null);
+                        const sizeStr = this._formatBytes(info.get_size());
+                        const filename = file.get_basename();
+                        const ext = filename.split('.').pop().toUpperCase();
 
-                    this.addItem({
-                        id: GLib.uuid_string_random(),
-                        type: 'image',
-                        title: filename,
-                        subtitle: `Screenshot / Image • ${sizeStr} • ${nowStr}`,
-                        filePath: path,
-                        fileUri: uris[0],
-                        format: ext,
-                        isGif: ext === 'GIF',
-                        fileSize: sizeStr,
-                        created_at: new Date().toISOString()
-                    });
-                    return;
+                        this.addItem({
+                            id: GLib.uuid_string_random(),
+                            type: 'image',
+                            title: filename,
+                            subtitle: `Screenshot / Image • ${sizeStr} • ${nowStr}`,
+                            filePath: path,
+                            fileUri: uris[0],
+                            uris: uris,
+                            format: ext,
+                            isGif: ext === 'GIF',
+                            fileSize: sizeStr,
+                            created_at: new Date().toISOString()
+                        });
+                        return;
+                    }
                 }
-            }
+            } catch (e) {}
         }
 
-        // Multiple files or non-image single file
+        // Multiple files or folder or non-image single file
         let totalSize = 0;
         const fileNames = [];
         let primaryIcon = 'text-x-generic';
+        let isFolder = false;
 
         uris.forEach(uri => {
             try {
                 const f = Gio.File.new_for_uri(uri);
                 if (f.query_exists(null)) {
                     fileNames.push(f.get_basename());
+                    const fType = f.query_file_type(Gio.FileQueryInfoFlags.NONE, null);
+                    if (fType === Gio.FileType.DIRECTORY) {
+                        isFolder = true;
+                        primaryIcon = 'folder';
+                    }
                     const info = f.query_info('standard::size,standard::content-type', Gio.FileQueryInfoFlags.NONE, null);
                     totalSize += info.get_size();
                     const ct = info.get_content_type();
-                    if (ct) {
+                    if (ct && !isFolder) {
                         if (ct.startsWith('video/')) primaryIcon = 'video-x-generic';
                         else if (ct.startsWith('audio/')) primaryIcon = 'audio-x-generic';
                         else if (ct.includes('zip') || ct.includes('tar') || ct.includes('archive')) primaryIcon = 'package-x-generic';
-                        else if (f.query_file_type(Gio.FileQueryInfoFlags.NONE, null) === Gio.FileType.DIRECTORY) primaryIcon = 'folder';
                     }
                 }
             } catch (e) {}
         });
 
         const isMulti = uris.length > 1;
-        const title = isMulti ? `${uris.length} Files: ${fileNames.slice(0, 3).join(', ')}${uris.length > 3 ? '...' : ''}` : fileNames[0];
+        const title = isMulti ? `${uris.length} Files: ${fileNames.slice(0, 3).join(', ')}${uris.length > 3 ? '...' : ''}` : (fileNames[0] || 'File');
+
+        let subtitle = '';
+        if (isMulti) {
+            subtitle = `Multiple Files (${uris.length}) • ${this._formatBytes(totalSize)} • ${nowStr}`;
+        } else if (isFolder) {
+            subtitle = `Folder • ${nowStr}`;
+        } else {
+            subtitle = `File • ${this._formatBytes(totalSize)} • ${nowStr}`;
+        }
 
         const item = {
             id: GLib.uuid_string_random(),
             type: 'file',
             title: title,
-            subtitle: isMulti ? `Multiple Files (${uris.length}) • ${this._formatBytes(totalSize)} • ${nowStr}` : `File • ${this._formatBytes(totalSize)} • ${nowStr}`,
+            subtitle: subtitle,
             filePath: uris.length === 1 ? Gio.File.new_for_uri(uris[0]).get_path() : null,
-            fileUri: uriString,
-            fileSize: this._formatBytes(totalSize),
+            fileUri: uris.join('\n'),
+            uris: uris,
+            fileSize: isFolder ? 'Folder' : this._formatBytes(totalSize),
             iconName: isMulti ? 'folder-documents-symbolic' : primaryIcon,
             isMultiple: isMulti,
+            isFolder: isFolder,
             created_at: new Date().toISOString()
         };
 
@@ -459,18 +480,87 @@ export class ClipboardManager {
         return now.format('%I:%M %p').replace(/^0/, '');
     }
 
+    _extractItemUris(item) {
+        if (!item) return [];
+        if (item.uris && Array.isArray(item.uris) && item.uris.length > 0) {
+            return item.uris.filter(u => typeof u === 'string' && u.startsWith('file://'));
+        }
+        if (item.fileUri) {
+            const list = item.fileUri.split(/[\r\n]+/)
+                .map(u => u.trim())
+                .filter(u => u.startsWith('file://'));
+            if (list.length > 0) return list;
+        }
+        if (item.filePath) {
+            try {
+                const f = Gio.File.new_for_path(item.filePath);
+                return [f.get_uri()];
+            } catch (e) {}
+        }
+        return [];
+    }
+
     /**
-     * Pastes item. Images are loaded as binary image/png payload onto Meta.Selection,
-     * so applications receive the ACTUAL IMAGE rather than a file path string!
+     * Pastes item.
+     * - Files and folders: Native GNOME 'x-special/gnome-copied-files' payload for Nautilus/Desktop,
+     *   or clean path text if focused inside a terminal or text editor.
+     * - Images: Binary image/png or image/jpeg payload onto Meta.Selection, so applications
+     *   receive the ACTUAL IMAGE rather than a file path string!
      */
     pasteItem(item) {
         if (!item) return;
 
         this._isInternalCopy = true;
         const selection = global.display.get_selection();
+        const targetWindow = this._lastFocusedWindow;
 
-        // 1. Populate clipboard with true native formats
-        if (item.type === 'image' && item.filePath && GLib.file_test(item.filePath, GLib.FileTest.EXISTS)) {
+        let isFileManager = false;
+        let isTextTarget = false;
+
+        if (targetWindow) {
+            const wmClass = (targetWindow.get_wm_class() || '').toLowerCase();
+            const fmClasses = ['nautilus', 'files', 'nemo', 'thunar', 'caja', 'dolphin', 'pcmanfm', 'ding'];
+            isFileManager = fmClasses.some(c => wmClass.includes(c));
+
+            const textClasses = ['terminal', 'kitty', 'alacritty', 'wezterm', 'ptyxis', 'console', 'xterm', 'terminator', 'tilix', 'code', 'gedit', 'gnome-text-editor', 'sublime', 'atom', 'vim', 'neovim', 'emacs', 'cursor'];
+            isTextTarget = textClasses.some(c => wmClass.includes(c));
+        }
+
+        const uris = this._extractItemUris(item);
+
+        // 1. Files & Folders (or images being pasted into a File Manager / Desktop)
+        if (uris.length > 0 && (item.type === 'file' || isFileManager)) {
+            if (!isTextTarget) {
+                // Nautilus file copying protocol: "copy\nfile:///path1\nfile:///path2" (strictly no trailing newline)
+                const payload = ['copy', ...uris].join('\n');
+                const bytes = GLib.Bytes.new(new TextEncoder().encode(payload));
+                try {
+                    const source = Meta.SelectionSourceMemory.new('x-special/gnome-copied-files', bytes);
+                    selection.set_owner(Meta.SelectionType.SELECTION_CLIPBOARD, source);
+                } catch (e) {
+                    console.error(`[Clipboard] Failed to set selection owner: ${e}`);
+                }
+                try {
+                    St.Clipboard.get_default().set_content(
+                        St.ClipboardType.CLIPBOARD,
+                        'x-special/gnome-copied-files',
+                        bytes
+                    );
+                } catch (e) {}
+            } else {
+                // If target window is a terminal or text editor, paste clean file paths as text
+                const paths = uris.map(u => {
+                    try {
+                        return Gio.File.new_for_uri(u).get_path() || u;
+                    } catch (e) {
+                        return u;
+                    }
+                });
+                const textPayload = paths.length > 1 ? paths.map(p => `"${p}"`).join(' ') : paths[0];
+                St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, textPayload);
+            }
+        } else if (item.type === 'image' && item.filePath && GLib.file_test(item.filePath, GLib.FileTest.EXISTS)) {
+            // Raw binary image for Chrome, Slack, Discord, GIMP, web editors
             try {
                 const file = Gio.File.new_for_path(item.filePath);
                 const [success, contents] = file.load_contents(null);
@@ -482,21 +572,12 @@ export class ClipboardManager {
             } catch (e) {
                 console.error(`[Clipboard] Failed to set binary image payload: ${e}`);
             }
-        } else if (item.type === 'file' && item.fileUri) {
-            try {
-                const uriBytes = new TextEncoder().encode(item.fileUri);
-                const source = Meta.SelectionSourceMemory.new('text/uri-list', GLib.Bytes.new(uriBytes));
-                selection.set_owner(Meta.SelectionType.SELECTION_CLIPBOARD, source);
-                St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.fileUri);
-            } catch (e) {
-                St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.fileUri);
-            }
         } else {
-            St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.content || item.title);
+            // Text, Code snippet, Hex color
+            St.Clipboard.get_default().set_text(St.ClipboardType.CLIPBOARD, item.content || item.title || '');
         }
 
         // 2. Refocus target window
-        const targetWindow = this._lastFocusedWindow;
         if (targetWindow) {
             try {
                 targetWindow.activate(global.get_current_time());

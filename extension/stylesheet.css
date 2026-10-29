@@ -108,12 +108,13 @@
 }
 
 .card-num-pill {
-    background-color: #0a84ff;
-    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #e5e5ea;
     font-size: 10px;
-    font-weight: 800;
-    border-radius: 4px;
-    padding: 1px 5px;
+    font-weight: 700;
+    border-radius: 5px;
+    padding: 1px 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .card-delete-btn {
@@ -245,12 +246,13 @@
 }
 
 .card-chip-badge {
-    background-color: #0a84ff;
-    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #e5e5ea;
     font-size: 9.5px;
     font-weight: 700;
-    border-radius: 4px;
-    padding: 1px 5px;
+    border-radius: 5px;
+    padding: 1px 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
     margin-right: 4px;
 }
 
