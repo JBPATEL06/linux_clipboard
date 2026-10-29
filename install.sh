@@ -2,27 +2,33 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AUTOSTART_DIR="$HOME/.config/autostart"
-APPS_DIR="$HOME/.local/share/applications"
+EXT_DIR="$SCRIPT_DIR/extension"
+DEST="$HOME/.local/share/gnome-shell/extensions/clipboard@antigravity.org"
 
-mkdir -p "$AUTOSTART_DIR" "$APPS_DIR"
+echo "Building and packaging GNOME Shell Extension..."
+cd "$EXT_DIR"
+gnome-extensions pack --force --extra-source=clipboardManager.js --extra-source=ui
 
-DESKTOP_FILE="$APPS_DIR/clipboard-linux.desktop"
+echo "Installing extension to $DEST..."
+rm -rf "$DEST"
+mkdir -p "$DEST"
+unzip -q -o "$EXT_DIR/clipboard@antigravity.org.shell-extension.zip" -d "$DEST"
+glib-compile-schemas "$DEST/schemas/"
 
-cat <<EOF > "$DESKTOP_FILE"
-[Desktop Entry]
-Name=Clipboard
-Comment=Modern Smart Clipboard Manager
-Exec=$SCRIPT_DIR/run.sh
-Icon=edit-paste
-Terminal=false
-Type=Application
-Categories=Utility;
-EOF
+echo "Enabling extension in GNOME settings..."
+python3 -c "
+import subprocess, ast
+curr = subprocess.check_output(['gsettings', 'get', 'org.gnome.shell', 'enabled-extensions'], text=True).strip()
+lst = ast.literal_eval(curr)
+if 'clipboard@antigravity.org' not in lst:
+    lst.append('clipboard@antigravity.org')
+    subprocess.run(['gsettings', 'set', 'org.gnome.shell', 'enabled-extensions', str(lst)])
+"
 
-chmod +x "$DESKTOP_FILE"
-
-# Autostart copy
-cp "$DESKTOP_FILE" "$AUTOSTART_DIR/"
-
-echo "Installed desktop entry and autostart entry successfully!"
+echo "=========================================================="
+echo "Extension installed and enabled successfully!"
+echo "If this is the first installation on Wayland, please log out"
+echo "and log back in (or press Alt+F2 -> r on X11) so GNOME Shell"
+echo "loads the newly registered extension."
+echo "Shortcut: Press Super+V to open where the cursor is."
+echo "=========================================================="

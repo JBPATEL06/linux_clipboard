@@ -1,0 +1,293 @@
+/* macOS Dark Translucent UI Theme for Clipboard Extension
+ * Inherits dynamic system accent colors matching Nautilus & Yaru-blue-dark
+ */
+
+.clipboard-popup-root {
+    background-color: transparent;
+}
+
+.clipboard-popup-window {
+    background-color: rgba(26, 26, 28, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px;
+    padding: 14px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.6);
+}
+
+/* Header */
+.clipboard-header {
+    margin-bottom: 10px;
+}
+
+.clipboard-header-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #f5f5f7;
+    margin-right: 8px;
+}
+
+.clipboard-counter-badge {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #a1a1a6;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 2px 8px;
+}
+
+.clipboard-header-icon-btn {
+    border-radius: 6px;
+    color: #a1a1a6;
+    padding: 4px 6px;
+    transition-duration: 150ms;
+}
+
+.clipboard-header-icon-btn:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+}
+
+/* Search Bar */
+.clipboard-search-box {
+    background-color: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 9px;
+    padding: 4px 8px;
+    margin-bottom: 12px;
+}
+
+.clipboard-search-box:focus {
+    border-color: #0a84ff;
+}
+
+.clipboard-search-icon {
+    color: #727278;
+    margin-right: 6px;
+}
+
+.clipboard-search-entry {
+    background-color: transparent;
+    color: #ffffff;
+    font-size: 13px;
+    border: none;
+    box-shadow: none;
+}
+
+.clipboard-ctrlv-badge {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #8e8e93;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+
+/* Cards Container */
+.clipboard-cards-box {
+    spacing: 6px;
+    margin-bottom: 10px;
+}
+
+/* Card Button */
+.clipboard-card-button {
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 8px 10px;
+    transition-duration: 100ms;
+}
+
+.clipboard-card-button:hover,
+.clipboard-card-button:focus {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(10, 132, 255, 0.4);
+}
+
+.card-top-bar {
+    margin-bottom: 4px;
+}
+
+.card-num-pill {
+    background-color: #0a84ff;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 800;
+    border-radius: 4px;
+    padding: 1px 5px;
+}
+
+.card-delete-btn {
+    border-radius: 4px;
+    padding: 2px 4px;
+    color: #636366;
+}
+
+.card-delete-btn:hover {
+    color: #ff453a;
+    background-color: rgba(255, 69, 58, 0.15);
+}
+
+/* 1. Image & GIF Card */
+.image-card-box {
+    spacing: 4px;
+}
+
+.image-preview-frame {
+    background-color: rgba(0, 0, 0, 0.4);
+    border-radius: 8px;
+    padding: 6px;
+    margin-bottom: 4px;
+}
+
+.image-preview-icon {
+    border-radius: 6px;
+}
+
+/* 2. Code Block Card */
+.code-card-box {
+    spacing: 3px;
+}
+
+.code-header-bar {
+    margin-bottom: 2px;
+}
+
+.code-filename-lbl {
+    color: #a1a1a6;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.code-inner-frame {
+    background-color: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 6px 8px;
+}
+
+.code-line-row {
+    spacing: 6px;
+}
+
+.code-line-num {
+    color: #636366;
+    font-family: monospace;
+    font-size: 11px;
+    min-width: 14px;
+}
+
+.code-line-text {
+    color: #f2f2f7;
+    font-family: monospace;
+    font-size: 11px;
+}
+
+.code-more-lbl {
+    color: #8e8e93;
+    font-size: 10px;
+    margin-top: 2px;
+}
+
+/* 3. Copied File Card */
+.file-card-box {
+    spacing: 8px;
+    padding: 4px 2px;
+}
+
+.file-name-lbl {
+    color: #f5f5f7;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.file-size-badge {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #a1a1a6;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 6px;
+    padding: 2px 7px;
+}
+
+/* 4. Color Swatch Card */
+.color-card-box {
+    spacing: 10px;
+    padding: 2px 0;
+}
+
+.color-swatch-circle {
+    width: 26px;
+    height: 26px;
+    border-radius: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.color-hex-title {
+    color: #f5f5f7;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+/* 5. Text Card */
+.text-card-box {
+    spacing: 2px;
+}
+
+.text-card-title {
+    color: #f5f5f7;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.card-subtitle-lbl {
+    color: #8e8e93;
+    font-size: 11px;
+}
+
+.card-chip-badge {
+    background-color: #0a84ff;
+    color: #ffffff;
+    font-size: 9.5px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-right: 4px;
+}
+
+/* Pagination Bar */
+.clipboard-pagination-bar {
+    spacing: 12px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pagination-nav-btn {
+    border-radius: 6px;
+    padding: 4px 8px;
+    color: #a1a1a6;
+}
+
+.pagination-nav-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+}
+
+.pagination-page-badge {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: #f5f5f7;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 3px 10px;
+}
+
+/* Empty State */
+.clipboard-empty-box {
+    padding: 40px 10px;
+}
+
+.clipboard-empty-lbl {
+    color: #636366;
+    font-size: 12px;
+    text-align: center;
+}

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="clipboard@antigravity.org">
+  <schema id="org.gnome.shell.extensions.clipboard" path="/org/gnome/shell/extensions/clipboard/">
+    <key name="shortcut" type="as">
+      <default>['&lt;Super&gt;v']</default>
+      <summary>Toggle Clipboard popup shortcut</summary>
+    </key>
+    <key name="items-per-page" type="i">
+      <default>5</default>
+      <summary>Number of items per page</summary>
+    </key>
+    <key name="history-size" type="i">
+      <default>100</default>
+      <summary>Maximum number of items stored in history</summary>
+    </key>
+    <key name="auto-paste" type="b">
+      <default>true</default>
+      <summary>Automatically paste on click</summary>
+    </key>
+    <key name="terminal-paste-mode" type="s">
+      <default>'auto'</default>
+      <summary>Terminal paste shortcut mode ('auto', 'ctrl-v', 'ctrl-shift-v')</summary>
+    </key>
+  </schema>
+</schemalist>
