@@ -1,4 +1,4 @@
-# macOS-Styled Native GNOME Shell Clipboard Manager
+# LinuxClip - macOS-Styled Native GNOME Shell Clipboard Manager
 
 [![GNOME Version](https://img.shields.io/badge/GNOME-45%20%7C%2046%20%7C%2047%20%7C%2048%20%7C%2050-blue.svg)](https://www.gnome.org/)
 [![Display Server](https://img.shields.io/badge/Display-Wayland%20%7C%20X11-success.svg)](#system-requirements)
@@ -128,16 +128,16 @@ cd linux_clipboard
 
 1. Copy the `extension` directory to your GNOME extensions path:
    ```bash
-   mkdir -p ~/.local/share/gnome-shell/extensions/clipboard@antigravity.org
-   cp -r extension/* ~/.local/share/gnome-shell/extensions/clipboard@antigravity.org/
+   mkdir -p ~/.local/share/gnome-shell/extensions/linuxclip@jbpatel06.github.com
+   cp -r extension/* ~/.local/share/gnome-shell/extensions/linuxclip@jbpatel06.github.com/
    ```
 2. Compile the GSettings schema:
    ```bash
-   glib-compile-schemas ~/.local/share/gnome-shell/extensions/clipboard@antigravity.org/schemas/
+   glib-compile-schemas ~/.local/share/gnome-shell/extensions/linuxclip@jbpatel06.github.com/schemas/
    ```
 3. Enable the extension:
    ```bash
-   gnome-extensions enable clipboard@antigravity.org
+   gnome-extensions enable linuxclip@jbpatel06.github.com
    ```
 
 > [!TIP]
@@ -162,15 +162,15 @@ You can customize the shortcut key, history size, or auto-paste behavior via `gs
 
 ```bash
 # Change keyboard shortcut (e.g. to Ctrl+Alt+V)
-gsettings --schemadir ~/.local/share/gnome-shell/extensions/clipboard@antigravity.org/schemas \
+gsettings --schemadir ~/.local/share/gnome-shell/extensions/linuxclip@jbpatel06.github.com/schemas \
   set org.gnome.shell.extensions.clipboard toggle-clipboard "['<Ctrl><Alt>v']"
 
 # Change history capacity (default: 100)
-gsettings --schemadir ~/.local/share/gnome-shell/extensions/clipboard@antigravity.org/schemas \
+gsettings --schemadir ~/.local/share/gnome-shell/extensions/linuxclip@jbpatel06.github.com/schemas \
   set org.gnome.shell.extensions.clipboard history-size 200
 
 # Toggle auto-paste on item click (default: true)
-gsettings --schemadir ~/.local/share/gnome-shell/extensions/clipboard@antigravity.org/schemas \
+gsettings --schemadir ~/.local/share/gnome-shell/extensions/linuxclip@jbpatel06.github.com/schemas \
   set org.gnome.shell.extensions.clipboard auto-paste true
 ```
 
@@ -181,8 +181,8 @@ gsettings --schemadir ~/.local/share/gnome-shell/extensions/clipboard@antigravit
 To cleanly remove the extension:
 
 ```bash
-gnome-extensions disable clipboard@antigravity.org
-rm -rf ~/.local/share/gnome-shell/extensions/clipboard@antigravity.org
+gnome-extensions disable linuxclip@jbpatel06.github.com
+rm -rf ~/.local/share/gnome-shell/extensions/linuxclip@jbpatel06.github.com
 rm -rf ~/.local/share/clipboard_linux
 ```
 

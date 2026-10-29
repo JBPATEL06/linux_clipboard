@@ -79,12 +79,12 @@ Configured via GNOME GSettings schema `org.gnome.settings-daemon.plugins.media-k
 # View all custom keybindings
 gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings
 
-# View Antigravity Clipboard binding
-gsettings get org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/antigravity-clipboard/ binding
+# View LinuxClip binding
+gsettings get org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linuxclip/ binding
 # Expected: '<Super>v'
 
 # View executed command
-gsettings get org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/antigravity-clipboard/ command
+gsettings get org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linuxclip/ command
 # Expected: '/home/jeel/Projects/clipboard_linux/run.sh --toggle'
 ```
 

@@ -1,7 +1,7 @@
 {
-  "name": "Clipboard",
-  "description": "macOS-styled smart floating clipboard manager with rich cards, pagination, and auto-paste.",
-  "uuid": "clipboard@antigravity.org",
+  "name": "LinuxClip",
+  "description": "macOS-styled smart floating clipboard manager with rich cards, pagination, and auto-paste for Linux.",
+  "uuid": "linuxclip@jbpatel06.github.com",
   "shell-version": [
     "45",
     "46",
@@ -12,7 +12,7 @@
     "50.1"
   ],
   "settings-schema": "org.gnome.shell.extensions.clipboard",
-  "gettext-domain": "clipboard@antigravity.org",
+  "gettext-domain": "linuxclip@jbpatel06.github.com",
   "session-modes": [
     "user",
     "unlock-dialog"

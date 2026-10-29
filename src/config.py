@@ -2,8 +2,8 @@
 import os
 from pathlib import Path
 
-APP_ID = "com.antigravity.clipboard"
-APP_NAME = "Clipboard"
+APP_ID = "org.linuxclip.clipboard"
+APP_NAME = "LinuxClip"
 DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "clipboard_linux"
 CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "clipboard_linux"
 IMAGE_DIR = DATA_DIR / "images"

@@ -4,13 +4,13 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CMD="$SCRIPT_DIR/run.sh --toggle"
 BINDING="<Super>v"
-NAME="Antigravity Clipboard"
+NAME="LinuxClip"
 
-echo "Setting up global shortcut ($BINDING) for Clipboard..."
+echo "Setting up global shortcut ($BINDING) for LinuxClip..."
 
 # Get current bindings
 CURRENT=$(gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings)
-PATH_ENTRY="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/antigravity-clipboard/"
+PATH_ENTRY="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/linuxclip/"
 
 if [[ "$CURRENT" != *"$PATH_ENTRY"* ]]; then
     # Add path to custom-keybindings list

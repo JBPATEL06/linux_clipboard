@@ -1,5 +1,5 @@
 /**
- * Extension entrypoint for Antigravity Clipboard
+ * Extension entrypoint for LinuxClip
  * Seamless GNOME Shell 45 - 50.1 integration with native Super+V shortcut.
  */
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
@@ -9,19 +9,19 @@ import Meta from 'gi://Meta';
 import { ClipboardManager } from './clipboardManager.js';
 import { ClipboardPopup } from './ui/popup.js';
 
-export default class ClipboardExtension extends Extension {
+export default class LinuxClipExtension extends Extension {
     enable() {
         try {
-            console.log('[Clipboard] Step 1: getSettings...');
+            console.log('[LinuxClip] Step 1: getSettings...');
             this._settings = this.getSettings();
-            console.log('[Clipboard] Step 2: ClipboardManager...');
+            console.log('[LinuxClip] Step 2: ClipboardManager...');
             this._manager = new ClipboardManager(this._settings);
-            console.log('[Clipboard] Step 3: startMonitoring...');
+            console.log('[LinuxClip] Step 3: startMonitoring...');
             this._manager.startMonitoring();
-            console.log('[Clipboard] Step 4: ClipboardPopup...');
+            console.log('[LinuxClip] Step 4: ClipboardPopup...');
             this._popup = new ClipboardPopup(this._manager, this._settings);
 
-            console.log('[Clipboard] Step 5: addKeybinding...');
+            console.log('[LinuxClip] Step 5: addKeybinding...');
             const keyName = this._settings.list_keys().includes('toggle-clipboard')
                 ? 'toggle-clipboard'
                 : 'shortcut';
@@ -39,9 +39,9 @@ export default class ClipboardExtension extends Extension {
                 }
             );
 
-            console.log(`[Clipboard] Extension enabled successfully! Bound key '${keyName}'. Press Super+V to toggle.`);
+            console.log(`[LinuxClip] Extension enabled successfully! Bound key '${keyName}'. Press Super+V to toggle.`);
         } catch (e) {
-            console.error(`[Clipboard] Error enabling extension: ${e}\nStack: ${e.stack}`);
+            console.error(`[LinuxClip] Error enabling extension: ${e}\nStack: ${e.stack}`);
         }
     }
 
@@ -67,9 +67,9 @@ export default class ClipboardExtension extends Extension {
             }
 
             this._settings = null;
-            console.log('[Clipboard] Extension disabled cleanly.');
+            console.log('[LinuxClip] Extension disabled cleanly.');
         } catch (e) {
-            console.error(`[Clipboard] Error disabling extension: ${e}`);
+            console.error(`[LinuxClip] Error disabling extension: ${e}`);
         }
     }
 }

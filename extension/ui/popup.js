@@ -1,5 +1,5 @@
 /**
- * ClipboardPopup for Antigravity Clipboard
+ * ClipboardPopup for LinuxClip
  * Modal popup placed directly at the cursor position with boundary clamping,
  * responsive display scaling, 5-items-per-page pagination, and instant auto-paste.
  */
@@ -66,7 +66,7 @@ export class ClipboardPopup {
             x_expand: true
         });
         this.titleLbl = new St.Label({
-            text: 'Clipboard',
+            text: 'LinuxClip',
             style_class: 'clipboard-header-title',
             reactive: true
         });

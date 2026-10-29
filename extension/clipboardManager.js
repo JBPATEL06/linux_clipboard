@@ -1,5 +1,5 @@
 /**
- * ClipboardManager for Antigravity Clipboard
+ * ClipboardManager for LinuxClip
  * Full multi-format clipboard monitoring and binary payload pasting:
  * - True image binary paste (Meta.SelectionSourceMemory for image/png)
  * - True file drop paste (text/uri-list)

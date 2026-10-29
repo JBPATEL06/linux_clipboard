@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<schemalist gettext-domain="clipboard@antigravity.org">
+<schemalist gettext-domain="linuxclip@jbpatel06.github.com">
   <schema id="org.gnome.shell.extensions.clipboard" path="/org/gnome/shell/extensions/clipboard/">
     <key name="toggle-clipboard" type="as">
       <default>['&lt;Super&gt;v']</default>

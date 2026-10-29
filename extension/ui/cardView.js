@@ -1,5 +1,5 @@
 /**
- * CardView for Antigravity Clipboard
+ * CardView for LinuxClip
  * Builds rich cards matching the user's wireframe:
  * - High-res Image & Animated GIF preview card (from Chrome, web, or screenshots)
  * - Copied text with emoji support
